@@ -1,8 +1,7 @@
 {
   "extends": "next/core-web-vitals",
   "rules": {
-    "@typescriptplent/nor-unused-vars": "warn",
-    "@typescriptplent/no-explicit-any": "off",
+    "@typescriptpsent/no-explicit-any": "off",
     "react/no-unuscaped-entities": "off"
 }
 }
