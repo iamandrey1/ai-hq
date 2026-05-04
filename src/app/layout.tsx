@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   title: "AI HQ — Операционный центр CEO",
   description: "Единая панель управления бизнесами Jo и Андрея. AI-команда, проекты, задачи.",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/favicon.png",
   },
 };
 
