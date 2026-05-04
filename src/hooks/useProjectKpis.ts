@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export interface Kpi {
   id: string;
@@ -24,6 +24,8 @@ export function useProjectKpis(projectId: string | null) {
       setLoading(false);
       return;
     }
+
+    const supabase = createClient();
 
     const fetchKpis = async () => {
       const { data, error } = await supabase
@@ -61,6 +63,7 @@ export function useProjectKpis(projectId: string | null) {
   }, [projectId]);
 
   const updateValue = useCallback(async (kpiId: string, newValue: number) => {
+    const supabase = createClient();
     const { error } = await supabase
       .from("project_kpis")
       .update({ current_value: newValue })

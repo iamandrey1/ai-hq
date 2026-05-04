@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useProjects } from "@/hooks/useProjects";
 import { useProjectPhases } from "@/hooks/useProjectPhases";
 import { useProjectForecast } from "@/hooks/useProjectForecast";
+import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, TrendingUp } from "lucide-react";
 
 const categoryColors: Record<string, string> = {
@@ -42,7 +43,7 @@ export default function RoadmapPage() {
       
       await Promise.all(
         projects.map(async (project) => {
-          const { supabase } = await import("@/lib/supabase");
+          const supabase = createClient();
           
           // Fetch phases
           const { data: phasesData } = await supabase

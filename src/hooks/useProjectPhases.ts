@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export interface Phase {
   id: string;
@@ -25,6 +25,8 @@ export function useProjectPhases(projectId: string | null) {
       setLoading(false);
       return;
     }
+
+    const supabase = createClient();
 
     const fetchPhases = async () => {
       const { data, error } = await supabase

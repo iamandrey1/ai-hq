@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export interface Forecast {
   id: string;
@@ -30,6 +30,8 @@ export function useProjectForecast(projectId: string | null) {
       setLoading(false);
       return;
     }
+
+    const supabase = createClient();
 
     const fetchForecast = async () => {
       const { data, error } = await supabase

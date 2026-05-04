@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export interface Risk {
   id: string;
@@ -25,6 +25,8 @@ export function useProjectRisks(projectId: string | null) {
       setLoading(false);
       return;
     }
+
+    const supabase = createClient();
 
     const fetchRisks = async () => {
       const { data, error } = await supabase
@@ -71,6 +73,7 @@ export function useProjectRisks(projectId: string | null) {
   }, [projectId]);
 
   const resolveRisk = useCallback(async (riskId: string) => {
+    const supabase = createClient();
     const { error } = await supabase
       .from("project_risks")
       .update({ is_resolved: true })
@@ -84,6 +87,7 @@ export function useProjectRisks(projectId: string | null) {
   }, []);
 
   const updateRisk = useCallback(async (riskId: string, updates: Partial<Pick<Risk, "title" | "description" | "mitigation">>) => {
+    const supabase = createClient();
     const { error } = await supabase
       .from("project_risks")
       .update(updates)

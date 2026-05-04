@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export interface ChecklistItem {
   id: string;
@@ -27,6 +27,8 @@ export function useProjectChecklist(projectId: string | null) {
       setLoading(false);
       return;
     }
+
+    const supabase = createClient();
 
     const fetchChecklist = async () => {
       const { data, error } = await supabase
@@ -72,6 +74,7 @@ export function useProjectChecklist(projectId: string | null) {
   }, [projectId]);
 
   const toggleItem = useCallback(async (item: ChecklistItem) => {
+    const supabase = createClient();
     const { error } = await supabase
       .from("project_checklist")
       .update({
@@ -89,6 +92,7 @@ export function useProjectChecklist(projectId: string | null) {
   }, []);
 
   const addItem = useCallback(async (phaseId: string, title: string, description?: string, dueDate?: string) => {
+    const supabase = createClient();
     const maxOrder = checklist
       .filter((c) => c.phase_id === phaseId)
       .reduce((max, c) => Math.max(max, c.order_index), -1);
@@ -114,6 +118,7 @@ export function useProjectChecklist(projectId: string | null) {
   }, [projectId, checklist]);
 
   const updateItem = useCallback(async (itemId: string, updates: Partial<Pick<ChecklistItem, "title" | "description" | "due_date">>) => {
+    const supabase = createClient();
     const { error } = await supabase
       .from("project_checklist")
       .update(updates)
@@ -127,6 +132,7 @@ export function useProjectChecklist(projectId: string | null) {
   }, []);
 
   const deleteItem = useCallback(async (itemId: string) => {
+    const supabase = createClient();
     const { error } = await supabase
       .from("project_checklist")
       .delete()

@@ -8,7 +8,7 @@ import { useProjectChecklist, ChecklistItem } from "@/hooks/useProjectChecklist"
 import { useProjectKpis, Kpi } from "@/hooks/useProjectKpis";
 import { useProjectForecast } from "@/hooks/useProjectForecast";
 import { useProjectRisks, Risk } from "@/hooks/useProjectRisks";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { 
   ArrowLeft, ExternalLink, ChevronDown, ChevronRight, Check, 
