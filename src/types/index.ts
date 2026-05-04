@@ -1,5 +1,5 @@
-export interface Profile {
-  id: string;
+export interface Message {
+  id?: string;
   full_name: string;
   initials: string;
   role: "ceo" | "guest";
