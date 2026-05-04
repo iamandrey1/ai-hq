@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import { Fraunces, Manrope, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const fraunces = Fraunces({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-fraunces",
-  display: "swap",
-});
-
-const manrope = Manrope({
-  subsets: ["latin"],
-  variable: "--font-manrope",
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -23,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "AI HQ — Операционный центр CEO",
-  description: "Единая панель управления бизнесами Jo и Андрея. AI-команда, проекты, задачи.",
+  description: "Единая панель управления бизнесами. AI-команда, проекты, задачи.",
   icons: {
     icon: "/favicon.png",
   },
@@ -35,9 +29,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${fraunces.variable} ${manrope.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen relative z-10">
-        <Toaster position="top-right" theme="dark" richColors />
+    <html lang="ru" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <head>
+        {/* Prevent theme flash on load */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}})()`,
+          }}
+        />
+      </head>
+      <body className="min-h-screen">
+        <Toaster position="top-right" theme="system" richColors />
         {children}
       </body>
     </html>

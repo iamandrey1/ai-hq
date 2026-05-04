@@ -14,7 +14,7 @@ export interface Project {
   name: string;
   category: "crypto" | "telegram" | "shopify" | "viral" | "other";
   description: string;
-  status: "active" | "paused" | "done" | "archived";
+  status: "active" | "in_progress" | "paused" | "done" | "archived";
   progress: number;
   repo_url?: string;
   prod_url?: string;

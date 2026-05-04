@@ -112,7 +112,7 @@ export default function BudgetPage() {
         </div>
 
         {/* Total Budget Card */}
-        <div className="bg-gradient-to-br from-panel to-panel-2 border border-line rounded-2xl p-6 mb-6">
+        <div className="bg-panel border border-line rounded-lg p-6 mb-6">
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Месячный расход</div>

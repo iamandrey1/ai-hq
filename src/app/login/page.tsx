@@ -85,17 +85,10 @@ export default function LoginPage() {
   if (sent && mode === "magic") {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle at 20% 10%, rgba(212, 164, 92, 0.08), transparent 40%), radial-gradient(circle at 80% 90%, rgba(107, 140, 175, 0.06), transparent 40%)",
-          }}
-        />
         <div className="relative z-10 w-full max-w-md">
           <div className="text-center mb-8">
             <div className="font-display text-4xl font-semibold tracking-[-0.02em] mb-2">
-              AI<span style={{ color: "var(--accent)" }}>·</span>HQ
+              AI<span className="text-accent">·</span>HQ
             </div>
             <div className="font-mono text-[10px] text-ink-3 tracking-[0.15em] uppercase">
               Headquarters · 01
@@ -128,18 +121,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle at 20% 10%, rgba(212, 164, 92, 0.08), transparent 40%), radial-gradient(circle at 80% 90%, rgba(107, 140, 175, 0.06), transparent 40%)",
-        }}
-      />
-
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="font-display text-4xl font-semibold tracking-[-0.02em] mb-2">
-            AI<span style={{ color: "var(--accent)" }}>·</span>HQ
+            AI<span className="text-accent">·</span>HQ
           </div>
           <div className="font-mono text-[10px] text-ink-3 tracking-[0.15em] uppercase">
             Headquarters · 01
