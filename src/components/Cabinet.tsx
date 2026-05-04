@@ -79,10 +79,11 @@ export function Cabinet() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      const messageId = `claude-${Date.now()}`;
 
       // Create placeholder for Claude response
       addMessage({
-        id: `claude-${Date.now()}`,
+        id: messageId,
         sender: "claude",
         senderName: "Claude",
         content: "",
@@ -102,7 +103,7 @@ export function Cabinet() {
               fullText += data.text;
               useStore.setState((state) => ({
                 messages: state.messages.map((m) =>
-                  m.id === `claude-${Date.now()}` ? { ...m, content: fullText } : m
+                  m.id === messageId ? { ...m, content: fullText } : m
                 ),
               }));
             }
@@ -137,7 +138,7 @@ export function Cabinet() {
         <div className="font-display text-[17px] font-medium mb-0.5">Поручения Claude</div>
         <div className="font-mono text-[10px] text-ink-3 tracking-[0.1em] uppercase">
           Прямой канал · CEO → AI
-</div>
+        </div>
       </div>
 
       <div ref={feedRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
