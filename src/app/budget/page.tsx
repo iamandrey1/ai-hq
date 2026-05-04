@@ -3,8 +3,8 @@
 import { Corridor } from "@/components/Corridor";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Plus, MoreVertical, Pencil, Pause, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { Plus, MoreVertical, Pencil, Pause, Play, Trash2, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 const categoryLabels: Record<string, string> = {
@@ -23,8 +23,6 @@ const categoryColors: Record<string, string> = {
   other: "text-ink-3",
 };
 
-const BUDGET_MONTHLY = 500;
-
 export default function BudgetPage() {
   const { subs, loading, total, byCategory, createSub, updateSub, deleteSub } = useSubscriptions();
   const [modalOpen, setModalOpen] = useState(false);
@@ -38,8 +36,19 @@ export default function BudgetPage() {
     status: "active" as string,
     notes: "",
   });
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const progress = Math.min((total / BUDGET_MONTHLY) * 100, 100);
+  // Close menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) && !openMenu?.startsWith("sub:")) {
+        // Don't close if clicking on menu buttons
+        if ((e.target as HTMLElement).closest('[data-menu]')) return;
+      }
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [openMenu]);
 
   const handleSubmit = async () => {
     if (!form.service.trim()) {
@@ -61,6 +70,24 @@ export default function BudgetPage() {
   const handleStatusChange = async (sub: any, status: string) => {
     await updateSub(sub.id, { status });
     toast.success(`Статус: ${status === "paused" ? "На паузе" : status === "active" ? "Активна" : "Отменена"}`);
+    setOpenMenu(null);
+  };
+
+  const handleEdit = (sub: any) => {
+    setEditingSub(sub);
+    setForm({ 
+      service: sub.service, 
+      category: sub.category, 
+      cost_monthly_usd: Number(sub.cost_monthly_usd), 
+      status: sub.status, 
+      notes: sub.notes || "" 
+    });
+    setModalOpen(true);
+    setOpenMenu(null);
+  };
+
+  const handleDelete = (sub: any) => {
+    setConfirmDelete(sub);
     setOpenMenu(null);
   };
 
@@ -92,43 +119,21 @@ export default function BudgetPage() {
               <div className="font-display text-[48px] font-medium tracking-[-0.02em]">${total.toFixed(0)}</div>
             </div>
             <div className="text-right">
-              <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Бюджет</div>
-              <div className="font-display text-[24px] text-ink-2">${BUDGET_MONTHLY}</div>
+              <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Активных подписок</div>
+              <div className="font-display text-[24px] text-ink-2">{subs.filter(s => s.status === "active").length}</div>
             </div>
           </div>
-          <div className="h-2 bg-bg rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-accent to-accent-2 rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="flex justify-between mt-2 font-mono text-[10px] text-ink-3">
-            <span>Использовано</span>
-            <span>{progress.toFixed(0)}%</span>
-          </div>
-        </div>
-
-        {/* Category Cards */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          {(["ai", "content", "automation", "hosting"] as const).map((cat) => {
-            const catSubs = subs.filter(s => s.category === cat && s.status === "active");
-            const catTotal = byCategory[cat] || 0;
-            return (
-              <div key={cat} className="bg-panel border border-line rounded-xl p-4">
-                <div className={`font-mono text-[10px] ${categoryColors[cat]} uppercase tracking-[0.12em] mb-2`}>
-                  {categoryLabels[cat]}
+          <div className="grid grid-cols-4 gap-4">
+            {(["ai", "content", "automation", "hosting"] as const).map(cat => {
+              const catTotal = byCategory[cat] || 0;
+              return (
+                <div key={cat} className="text-center">
+                  <div className="font-mono text-[10px] text-ink-3 uppercase mb-1">{categoryLabels[cat]}</div>
+                  <div className="font-display text-xl font-medium">${catTotal.toFixed(0)}</div>
                 </div>
-                <div className="font-display text-[28px] font-medium mb-1">${catTotal.toFixed(0)}</div>
-                <div className="font-mono text-[10px] text-ink-3">{catSubs.length} подписок</div>
-                <div className="h-1 bg-line rounded mt-3 overflow-hidden">
-                  <div
-                    className="h-full bg-current rounded"
-                    style={{ width: `${BUDGET_MONTHLY ? (catTotal / BUDGET_MONTHLY) * 100 : 0}%`, backgroundColor: cat === "ai" ? "var(--accent)" : cat === "content" ? "var(--blue)" : cat === "automation" ? "var(--green)" : "var(--ink-2)" }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {/* Subscriptions Table */}
@@ -144,20 +149,16 @@ export default function BudgetPage() {
                 <th className="px-6 py-3 text-right font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">$/мес</th>
                 <th className="px-6 py-3 text-center font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">Статус</th>
                 <th className="px-6 py-3 text-left font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">Заметка</th>
-                <th className="px-6 py-3 w-10"></th>
+                <th className="px-6 py-3 w-20"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-ink-3">Загрузка...</td>
-                </tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-ink-3">Загрузка...</td></tr>
               ) : subs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-ink-3">Нет подписок. Добавьте первую.</td>
-                </tr>
-              ) : subs.map((sub) => (
-                <tr key={sub.id} className="border-b border-line last:border-0 hover:bg-panel-2/50 transition-colors">
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-ink-3">Нет подписок. Добавьте первую.</td></tr>
+              ) : subs.map(sub => (
+                <tr key={sub.id} className="border-b border-line last:border-0 hover:bg-panel-2/50 transition-colors group">
                   <td className="px-6 py-4 font-medium text-sm">{sub.service}</td>
                   <td className="px-6 py-4">
                     <span className={`font-mono text-[10px] px-2 py-1 rounded ${categoryColors[sub.category]} bg-bg`}>
@@ -167,52 +168,47 @@ export default function BudgetPage() {
                   <td className="px-6 py-4 text-right font-mono text-sm">${Number(sub.cost_monthly_usd).toFixed(2)}</td>
                   <td className="px-6 py-4 text-center">
                     <span className={`font-mono text-[10px] px-2 py-1 rounded ${
-                      sub.status === "active" ? "bg-green/20 text-green" :
+sub.status === "active" ? "bg-green/20 text-green" :
                       sub.status === "paused" ? "bg-accent/20 text-accent" : "bg-line text-ink-3"
                     }`}>
                       {sub.status === "active" ? "Активна" : sub.status === "paused" ? "На паузе" : "Отменена"}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-ink-2 truncate max-w-[200px]">{sub.notes || "—"}</td>
-                  <td className="px-6 py-4 relative">
-                    <button
-                      onClick={() => setOpenMenu(openMenu === sub.id ? null : sub.id)}
-                      className="p-1 hover:bg-panel rounded transition-colors"
-                    >
-                      <MoreVertical size={16} className="text-ink-3" />
-                    </button>
-                    {openMenu === sub.id && (
-                      <div className="absolute right-6 top-full mt-1 bg-panel-2 border border-line rounded-lg shadow-xl z-10 py-1 min-w-[140px]">
+                  <td className="px-6 py-4">
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleEdit(sub)}
+                        className="p-1.5 hover:bg-panel rounded transition-colors"
+                        title="Редактировать"
+                      >
+                        <Pencil size={14} className="text-ink-3 hover:text-ink-1" />
+                      </button>
+                      {sub.status === "active" ? (
                         <button
-                          onClick={() => { setEditingSub(sub); setForm({ service: sub.service, category: sub.category, cost_monthly_usd: Number(sub.cost_monthly_usd), status: sub.status, notes: sub.notes || "" }); setModalOpen(true); setOpenMenu(null); }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2"
+                          onClick={() => handleStatusChange(sub, "paused")}
+                          className="p-1.5 hover:bg-panel rounded transition-colors"
+                          title="На паузу"
                         >
-                          <Pencil size={14} /> Редактировать
+                          <Pause size={14} className="text-ink-3 hover:text-ink-1" />
                         </button>
-                        {sub.status === "active" && (
-                          <button
-                            onClick={() => handleStatusChange(sub, "paused")}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2"
-                          >
-                            <Pause size={14} /> На паузу
-                          </button>
-                        )}
-                        {sub.status === "paused" && (
-                          <button
-                            onClick={() => handleStatusChange(sub, "active")}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors"
-                          >
-                            Активировать
-                          </button>
-                        )}
+                      ) : sub.status === "paused" ? (
                         <button
-                          onClick={() => { setConfirmDelete(sub); setOpenMenu(null); }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2 text-red"
+                          onClick={() => handleStatusChange(sub, "active")}
+                          className="p-1.5 hover:bg-panel rounded transition-colors"
+                          title="Активировать"
                         >
-                          <Trash2 size={14} /> Удалить
+                          <Play size={14} className="text-green hover:text-green-2" />
                         </button>
-                      </div>
-                    )}
+                      ) : null}
+                      <button
+                        onClick={() => handleDelete(sub)}
+                        className="p-1.5 hover:bg-panel rounded transition-colors"
+                        title="Удалить"
+                      >
+                        <Trash2 size={14} className="text-ink-3 hover:text-red" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -237,7 +233,7 @@ export default function BudgetPage() {
                 <input
                   type="text"
                   value={form.service}
-                  onChange={(e) => setForm({ ...form, service: e.target.value })}
+                  onChange={e => setForm({ ...form, service: e.target.value })}
                   className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
                   placeholder="Anthropic Claude"
                 />
@@ -247,7 +243,7 @@ export default function BudgetPage() {
                   <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Категория</label>
                   <select
                     value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    onChange={e => setForm({ ...form, category: e.target.value })}
                     className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
                   >
                     <option value="ai">AI</option>
@@ -263,7 +259,7 @@ export default function BudgetPage() {
                     type="number"
                     step="0.01"
                     value={form.cost_monthly_usd}
-                    onChange={(e) => setForm({ ...form, cost_monthly_usd: parseFloat(e.target.value) || 0 })}
+                    onChange={e => setForm({ ...form, cost_monthly_usd: parseFloat(e.target.value) || 0 })}
                     className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
                   />
                 </div>
@@ -272,7 +268,7 @@ export default function BudgetPage() {
                 <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Статус</label>
                 <select
                   value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  onChange={e => setForm({ ...form, status: e.target.value })}
                   className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
                 >
                   <option value="active">Активна</option>
@@ -284,7 +280,7 @@ export default function BudgetPage() {
                 <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Заметка</label>
                 <textarea
                   value={form.notes || ""}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  onChange={e => setForm({ ...form, notes: e.target.value })}
                   rows={2}
                   className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none resize-none"
                   placeholder="API key для..."

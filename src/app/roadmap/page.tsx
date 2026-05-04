@@ -2,17 +2,15 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useProjects } from "@/hooks/useProjects";
-import { useProjectPhases } from "@/hooks/useProjectPhases";
-import { useProjectForecast } from "@/hooks/useProjectForecast";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, TrendingUp } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 
 const categoryColors: Record<string, string> = {
-  crypto: "bg-amber-500/80",
-  telegram: "bg-blue-500/80",
-  shopify: "bg-green-500/80",
-  viral: "bg-red-500/80",
-  other: "bg-gray-500/80",
+  crypto: "#f59e0b",
+  telegram: "#3b82f6",
+  shopify: "#22c55e",
+  viral: "#ef4444",
+  other: "#6b7280",
 };
 
 const categoryLabels: Record<string, string> = {
@@ -30,84 +28,76 @@ interface ProjectPhase {
   end_week: number;
 }
 
+interface ForecastData {
+  month_num: number;
+  expected_revenue: number;
+  expected_costs: number;
+}
+
 export default function RoadmapPage() {
   const { projects } = useProjects();
   const [projectPhases, setProjectPhases] = useState<Record<string, ProjectPhase[]>>({});
-  const [projectForecasts, setProjectForecasts] = useState<Record<string, any[]>>({});
+  const [projectForecasts, setProjectForecasts] = useState<Record<string, ForecastData[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAllPhases = async () => {
+    const fetchAllData = async () => {
       const phases: Record<string, ProjectPhase[]> = {};
-      const forecasts: Record<string, any[]> = {};
+      const forecasts: Record<string, ForecastData[]> = {};
       
-      await Promise.all(
-        projects.map(async (project) => {
-          const supabase = createClient();
-          
-          // Fetch phases
-          const { data: phasesData } = await supabase
-            .from("project_phases")
-            .select("id, project_id, start_week, end_week")
-            .eq("project_id", project.id);
-          
-          if (phasesData) {
-            phases[project.id] = phasesData;
-          }
-          
-          // Fetch forecast
-          const { data: forecastData } = await supabase
-            .from("project_forecast")
-            .select("*")
-            .eq("project_id", project.id)
-            .order("month_num", { ascending: true });
-          
-          if (forecastData) {
-            forecasts[project.id] = forecastData;
-          }
-        })
-      );
+      for (const project of projects) {
+        const supabase = createClient();
+        
+        const { data: phasesData } = await supabase
+          .from("project_phases")
+          .select("id, project_id, start_week, end_week")
+          .eq("project_id", project.id);
+        
+        if (phasesData) phases[project.id] = phasesData;
+        
+        const { data: forecastData } = await supabase
+          .from("project_forecast")
+          .select("month_num, expected_revenue, expected_costs")
+          .eq("project_id", project.id)
+          .order("month_num", { ascending: true });
+        
+        if (forecastData) forecasts[project.id] = forecastData;
+      }
       
       setProjectPhases(phases);
       setProjectForecasts(forecasts);
       setLoading(false);
     };
 
-    if (projects.length > 0) {
-      fetchAllPhases();
-    }
+    if (projects.length > 0) fetchAllData();
   }, [projects]);
 
-  // Calculate months (6 months from project start)
   const months = Array.from({ length: 6 }, (_, i) => i + 1);
 
-  // Calculate timeline for each project
   const getProjectTimeline = (projectId: string) => {
     const phases = projectPhases[projectId] || [];
-    if (phases.length === 0) return { start: 1, end: 6, hasFuture: false };
+    if (!phases.length) return null;
     
-    const minStart = Math.min(...phases.map(p => p.start_week));
-    const maxEnd = Math.max(...phases.map(p => p.end_week));
+    const minStart = Math.min(...phases.map(p => p.start_week || 1));
+    const maxEnd = Math.max(...phases.map(p => p.end_week || 24));
     
-    const startMonth = Math.max(1, Math.ceil(minStart / 4));
-    const endMonth = Math.min(6, Math.ceil(maxEnd / 4));
-    
-    return { start: startMonth, end: endMonth };
+    return { start: minStart, end: maxEnd };
   };
 
-  // Calculate total forecast revenue by month
-  const totalForecastByMonth = months.map((month) => {
-    let total = 0;
-    Object.values(projectForecasts).forEach((forecasts) => {
-      const monthForecast = forecasts.find((f: any) => f.month_num === month);
-      if (monthForecast) {
-        total += monthForecast.expected_revenue || 0;
-      }
+  // Aggregate all forecasts
+  const allForecasts: ForecastData[] = [];
+  for (let m = 1; m <= 6; m++) {
+    let revenue = 0, costs = 0;
+    Object.values(projectForecasts).forEach(forecasts => {
+      const f = forecasts.find(f => f.month_num === m);
+      if (f) { revenue += f.expected_revenue || 0; costs += f.expected_costs || 0; }
     });
-    return total;
-  });
+    allForecasts.push({ month_num: m, expected_revenue: revenue, expected_costs: costs });
+  }
 
-  const maxRevenue = Math.max(...totalForecastByMonth, 1);
+  const totalRevenue = allForecasts.reduce((s, f) => s + f.expected_revenue, 0);
+  const totalCosts = allForecasts.reduce((s, f) => s + f.expected_costs, 0);
+  const maxRevenue = Math.max(...allForecasts.map(f => f.expected_revenue), 1);
 
   if (loading) {
     return (
@@ -123,142 +113,121 @@ export default function RoadmapPage() {
       <div className="bg-obsidian-2 border-b border-line/30">
         <div className="max-w-6xl mx-auto px-6 py-6">
           <Link href="/projects" className="inline-flex items-center gap-2 text-ink-3 hover:text-ink-1 mb-6 transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            Все проекты
+            <ArrowLeft className="w-4 h-4" />Все проекты
           </Link>
-          
           <h1 className="text-3xl font-bold text-ink-1">Roadmap</h1>
-          <p className="text-ink-3 mt-2">План по всем проектам на 6 месяцев</p>
+          <p className="text-ink-3 mt-2">Timeline всех проектов на 6 месяцев</p>
         </div>
       </div>
 
-      {/* Gantt Chart */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="bg-obsidian-3 rounded-xl p-6 mb-8">
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        {/* Gantt Chart */}
+        <div className="bg-obsidian-3 rounded-xl p-6">
           <h2 className="text-lg font-semibold text-ink-1 mb-6">Timeline проектов</h2>
           
-          {/* Gantt grid */}
-          <div className="overflow-x-auto">
-            <div className="min-w-[600px]">
-              {/* Month headers */}
-              <div className="grid grid-cols-7 gap-2 mb-4">
-                <div className="text-sm text-ink-3 font-medium">Проект</div>
-                {months.map((m) => (
-                  <div key={m} className="text-center text-sm text-ink-3 font-mono">
-                    M{m}
+          {/* Month headers */}
+          <div className="flex mb-4 pl-[200px]">
+            {months.map(m => (
+              <div key={m} className="flex-1 text-center text-sm text-ink-3 font-mono">М{m}</div>
+            ))}
+          </div>
+
+          {/* Project rows */}
+          <div className="space-y-4">
+            {projects.map(project => {
+              const timeline = getProjectTimeline(project.id);
+              const color = categoryColors[project.category] || categoryColors.other;
+              const label = categoryLabels[project.category] || project.name;
+
+              return (
+                <div key={project.id} className="flex items-center gap-4">
+                  <div className="w-[180px] flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-sm text-ink-1 truncate">{label}</span>
                   </div>
-                ))}
-              </div>
-
-              {/* Project rows */}
-              <div className="space-y-3">
-                {projects.map((project) => {
-                  const timeline = getProjectTimeline(project.id);
-                  const colorClass = categoryColors[project.category] || categoryColors.other;
-                  const label = categoryLabels[project.category] || project.name;
-
-                  return (
-                    <div key={project.id} className="grid grid-cols-7 gap-2 items-center">
-                      <div className="text-sm text-ink-1 truncate pr-4">{label}</div>
-                      {months.map((m) => (
-                        <div key={m} className="h-8 rounded bg-obsidian-4/50" />
-                      ))}
-                      {/* Overlay bars */}
-                      <div className="absolute left-[calc(16.66%+16.66%*0)]" />
+                  <div className="flex-1 relative h-8 bg-obsidian-4/50 rounded">
+                    {timeline ? (
                       <div 
-                        className="col-start-2 col-span-4 h-8 rounded-full opacity-80 relative overflow-hidden"
+                        className="absolute h-full rounded-full opacity-80"
                         style={{ 
-                          gridColumn: `${timeline.start + 1} / ${timeline.end + 2}`,
+                          backgroundColor: color,
+left: `${((Math.max(1, Math.ceil(timeline.start / 4)) - 1) / 6) * 100}%`,
+                          width: `${Math.max(((timeline.end - timeline.start + 4) / 24) * 100, 16)}%`
                         }}
-                      >
-                        <div className={`absolute inset-0 ${colorClass} rounded-full`} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Better Gantt visualization */}
-              <div className="mt-8">
-                <div className="flex items-center gap-8">
-                  {projects.map((project) => {
-                    const timeline = getProjectTimeline(project.id);
-                    const colorClass = categoryColors[project.category] || categoryColors.other;
-                    const label = categoryLabels[project.category] || project.name;
-                    const width = ((timeline.end - timeline.start + 1) / 6) * 100;
-                    const left = ((timeline.start - 1) / 6) * 100;
-
-                    return (
-                      <div key={project.id} className="flex items-center gap-4 min-w-[200px]">
-                        <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: colorClass.replace("/80", "") }} />
-                        <div className="flex-1">
-                          <div className="text-sm text-ink-1 mb-1">{label}</div>
-                          <div className="relative h-6 bg-obsidian-4 rounded">
-                            <div 
-                              className="absolute h-full rounded" 
-style={{ 
-                                left: `${left}%`, 
-                                width: `${width}%`,
-                                backgroundColor: colorClass.replace("/80", "") 
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-xs text-ink-3">Нет данных</span>
+                    )}
+                  </div>
                 </div>
-
-                {/* Month scale */}
-                <div className="flex justify-between mt-4 pl-8">
-                  {months.map((m) => (
-                    <div key={m} className="text-xs text-ink-3 font-mono w-8 text-center">M{m}</div>
-                  ))}
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           {/* Legend */}
           <div className="flex gap-6 mt-6 pt-6 border-t border-line/30">
-            {Object.entries(categoryColors).slice(0, 5).map(([cat, color]) => (
+            {Object.entries(categoryLabels).map(([cat, label]) => (
               <div key={cat} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded" style={{ backgroundColor: color.replace("/80", "") }} />
-                <span className="text-xs text-ink-3">{categoryLabels[cat] || cat}</span>
+                <div className="w-3 h-3 rounded" style={{ backgroundColor: categoryColors[cat] }} />
+                <span className="text-xs text-ink-3">{label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Total forecast */}
+        {/* Revenue Chart */}
         <div className="bg-obsidian-3 rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-ink-1 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-amber-400" />
-              Общий прогноз дохода
+              Прогноз доходов
             </h3>
-            <div className="text-right">
-              <div className="text-sm text-ink-3">За 6 месяцев</div>
-              <div className="text-xl font-bold text-green-400">
-                ${totalForecastByMonth.reduce((a, b) => a + b, 0).toLocaleString()}
+            <div className="flex gap-6">
+              <div className="text-right">
+                <div className="text-xs text-ink-3">Доход</div>
+                <div className="text-lg font-bold text-green-400">${totalRevenue.toLocaleString()}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-ink-3">Расход</div>
+                <div className="text-lg font-bold text-red-400">${totalCosts.toLocaleString()}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-ink-3">Прибыль</div>
+                <div className={`text-lg font-bold ${totalRevenue - totalCosts >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  ${(totalRevenue - totalCosts).toLocaleString()}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Bar chart */}
           <div className="flex items-end gap-4 h-48">
-            {totalForecastByMonth.map((revenue, idx) => (
+            {allForecasts.map((f, idx) => (
               <div key={idx} className="flex-1 flex flex-col items-center gap-2">
                 <div className="w-full flex flex-col gap-1">
                   <div 
-                    className="bg-amber-500/60 rounded-t transition-all"
-                    style={{ height: `${Math.max((revenue / maxRevenue) * 160, 4)}px` }}
+                    className="bg-green-500/60 rounded-t transition-all"
+                    style={{ height: `${Math.max((f.expected_revenue / maxRevenue) * 160, f.expected_revenue > 0 ? 4 : 0)}px` }}
+                  />
+                  <div 
+                    className="bg-red-500/60 rounded-t transition-all"
+                    style={{ height: `${Math.max((f.expected_costs / maxRevenue) * 160, 4)}px` }}
                   />
                 </div>
-                <div className="text-xs text-ink-3 font-mono">M{idx + 1}</div>
-                <div className="text-xs text-ink-2">${revenue.toLocaleString()}</div>
+                <div className="text-xs text-ink-3 font-mono">М{idx + 1}</div>
+                <div className="text-xs text-ink-2">${f.expected_revenue.toLocaleString()}</div>
               </div>
             ))}
+          </div>
+          <div className="flex justify-center gap-6 mt-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500/60 rounded" />
+              <span className="text-xs text-ink-3">Доход</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-500/60 rounded" />
+              <span className="text-xs text-ink-3">Расходы</span>
+            </div>
           </div>
         </div>
       </div>

@@ -4,8 +4,8 @@ import { Corridor } from "@/components/Corridor";
 import { useTasks } from "@/hooks/useTasks";
 import { useProjects } from "@/hooks/useProjects";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Plus, MoreVertical, Pencil, Trash2, X } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { Plus, MoreVertical, Pencil, Trash2, X, GripVertical } from "lucide-react";
+import { useState, useEffect, useRef, DragEvent } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
@@ -40,6 +40,8 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState<any>(null);
   const [confirmDelete, setConfirmDelete] = useState<any>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [draggedTask, setDraggedTask] = useState<any>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -48,7 +50,6 @@ export default function TasksPage() {
     status: "todo" as string,
   });
   const menuRef = useRef<HTMLDivElement>(null);
-  const supabase = createClient();
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -60,9 +61,9 @@ export default function TasksPage() {
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
-  const todoTasks = tasks.filter((t) => t.status === "todo");
-  const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
-  const doneTasks = tasks.filter((t) => t.status === "done");
+  const todoTasks = tasks.filter(t => t.status === "todo");
+  const inProgressTasks = tasks.filter(t => t.status === "in_progress");
+  const doneTasks = tasks.filter(t => t.status === "done");
 
   const handleSubmit = async () => {
     if (!form.title.trim()) {
@@ -87,6 +88,38 @@ export default function TasksPage() {
     setOpenMenu(null);
   };
 
+  // Drag & Drop handlers
+  const handleDragStart = (e: DragEvent, task: any) => {
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", task.id);
+  };
+
+  const handleDragOver = (e: DragEvent, column: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverColumn(column);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = async (e: DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+    if (draggedTask && draggedTask.status !== targetStatus) {
+      await updateTask(draggedTask.id,{ status: targetStatus });
+      toast.success(`Задача перемещена в "${statusLabels[targetStatus as keyof typeof statusLabels]}"`);
+    }
+    setDraggedTask(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+    setDragOverColumn(null);
+  };
+
   const getProjectName = (projectId?: string) => {
     if (!projectId) return null;
     const project = projects.find((p) => p.id === projectId);
@@ -103,7 +136,7 @@ export default function TasksPage() {
               <em style={{ fontStyle: "italic", color: "var(--accent)" }}>Задачи</em>
             </h1>
             <p className="text-ink-3 text-sm">
-              {tasks.length} задач · {todoTasks.length} в очереди
+              {tasks.length} задач · {todoTasks.length} в очереди · перетаскивай для смены статуса
             </p>
           </div>
           <button
@@ -118,13 +151,18 @@ export default function TasksPage() {
         {/* Kanban Board */}
         <div className="grid grid-cols-3 gap-6">
           {/* Todo */}
-          <div>
+          <div
+            onDragOver={(e) => handleDragOver(e, "todo")}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, "todo")}
+            className={`rounded-xl p-4 transition-all ${dragOverColumn === "todo" ? "bg-accent/10 ring-2 ring-accent/30" : "bg-panel"}`}
+          >
             <div className="font-mono text-[11px] text-ink-3 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${statusColors.todo}`} />
               К выполнению
-              <span className="ml-auto bg-panel px-2 py-0.5 rounded-full">{todoTasks.length}</span>
+              <span className="ml-auto bg-panel-2 px-2 py-0.5 rounded-full">{todoTasks.length}</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 min-h-[200px]">
               {loading ? (
                 <div className="bg-panel border border-line rounded-lg h-24 animate-pulse" />
               ) : todoTasks.length === 0 ? (
@@ -137,22 +175,27 @@ export default function TasksPage() {
                   onStatusChange={handleStatusChange}
                   onEdit={() => { setEditingTask(task); setForm({ title: task.title, description: task.description || "", project_id: task.project_id || "", priority: task.priority, status: task.status }); setModalOpen(true); setOpenMenu(null); }}
                   onDelete={() => { setConfirmDelete(task); setOpenMenu(null); }}
-                  openMenu={openMenu}
-                  setOpenMenu={setOpenMenu}
-                  menuRef={menuRef}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  isDragging={draggedTask?.id === task.id}
                 />
               ))}
             </div>
           </div>
 
           {/* In Progress */}
-          <div>
+          <div
+            onDragOver={(e) => handleDragOver(e, "in_progress")}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, "in_progress")}
+            className={`rounded-xl p-4 transition-all ${dragOverColumn === "in_progress" ? "bg-accent/10 ring-2 ring-accent/30" : "bg-panel"}`}
+          >
             <div className="font-mono text-[11px] text-ink-3 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${statusColors.in_progress}`} />
               В работе
               <span className="ml-auto bg-accent/20 text-accent px-2 py-0.5 rounded-full">{inProgressTasks.length}</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 min-h-[200px]">
               {inProgressTasks.length === 0 ? (
                 <div className="text-center py-8 text-ink-3 text-sm">Нет задач</div>
               ) : inProgressTasks.map((task) => (
@@ -163,22 +206,27 @@ export default function TasksPage() {
                   onStatusChange={handleStatusChange}
                   onEdit={() => { setEditingTask(task); setForm({ title: task.title, description: task.description || "", project_id: task.project_id || "", priority: task.priority, status: task.status }); setModalOpen(true); setOpenMenu(null); }}
                   onDelete={() => { setConfirmDelete(task); setOpenMenu(null); }}
-                  openMenu={openMenu}
-                  setOpenMenu={setOpenMenu}
-                  menuRef={menuRef}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  isDragging={draggedTask?.id === task.id}
                 />
               ))}
             </div>
           </div>
 
           {/* Done */}
-          <div>
+          <div
+            onDragOver={(e) => handleDragOver(e, "done")}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, "done")}
+            className={`rounded-xl p-4 transition-all ${dragOverColumn === "done" ? "bg-accent/10 ring-2 ring-accent/30" : "bg-panel"}`}
+          >
             <div className="font-mono text-[11px] text-ink-3 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${statusColors.done}`} />
               Готово
               <span className="ml-auto bg-green/20 text-green px-2 py-0.5 rounded-full">{doneTasks.length}</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 min-h-[200px]">
               {doneTasks.length === 0 ? (
                 <div className="text-center py-8 text-ink-3 text-sm">Нет задач</div>
               ) : doneTasks.map((task) => (
@@ -189,9 +237,9 @@ export default function TasksPage() {
                   onStatusChange={handleStatusChange}
                   onEdit={() => { setEditingTask(task); setForm({ title: task.title, description: task.description || "", project_id: task.project_id || "", priority: task.priority, status: task.status }); setModalOpen(true); setOpenMenu(null); }}
                   onDelete={() => { setConfirmDelete(task); setOpenMenu(null); }}
-                  openMenu={openMenu}
-                  setOpenMenu={setOpenMenu}
-                  menuRef={menuRef}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  isDragging={draggedTask?.id === task.id}
                 />
               ))}
             </div>
@@ -304,10 +352,20 @@ export default function TasksPage() {
   );
 }
 
-function TaskCard({ task, projectName, onStatusChange, onEdit, onDelete, openMenu, setOpenMenu, menuRef }: any) {
+function TaskCard({ task, projectName, onStatusChange, onEdit, onDelete, onDragStart, onDragEnd, isDragging }: any) {
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+
   return (
-    <div className="bg-panel border border-line rounded-lg p-4 group relative">
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, task)}
+      onDragEnd={onDragEnd}
+      className={`bg-panel border border-line rounded-lg p-4 cursor-grab active:cursor-grabbing group relative transition-all ${
+        isDragging ? "opacity-50 scale-95" : "hover:border-accent/30"
+      }`}
+    >
       <div className="flex items-start gap-2 mb-2">
+        <GripVertical size={14} className="text-ink-3 opacity-0 group-hover:opacity-100 cursor-grab flex-shrink-0 mt-0.5" />
         <span className={`font-mono text-[14px] ${task.status === "done" ? "text-green" : priorityColors[task.priority]}`}>
           {task.status === "todo" ? "○" : task.status === "in_progress" ? "◐" : "●"}
         </span>
@@ -322,9 +380,9 @@ function TaskCard({ task, projectName, onStatusChange, onEdit, onDelete, openMen
         </button>
       </div>
       {task.description && (
-        <p className="text-[12px] text-ink-3 leading-relaxed mb-2 line-clamp-2">{task.description}</p>
+        <p className="text-[12px] text-ink-3 leading-relaxed mb-2 line-clamp-2 ml-6">{task.description}</p>
       )}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap ml-6">
         <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded ${
           task.priority === "high" ? "bg-red/20 text-red" :
           task.priority === "medium" ? "bg-accent/20 text-accent" : "bg-panel-2 text-ink-3"
@@ -339,41 +397,26 @@ function TaskCard({ task, projectName, onStatusChange, onEdit, onDelete, openMen
       </div>
 
       {openMenu === task.id && (
-        <div ref={menuRef} className="absolute top-full right-0 mt-1 bg-panel-2 border border-line rounded-lg shadow-xl z-10 py-1 min-w-[140px]">
+        <div className="absolute top-full right-0 mt-1 bg-panel-2 border border-line rounded-lg shadow-xl z-10 py-1 min-w-[140px]">
           {task.status !== "in_progress" && (
-            <button
-              onClick={() => onStatusChange(task, "in_progress")}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors"
-            >
+            <button onClick={() => { onStatusChange(task, "in_progress"); setOpenMenu(null); }} className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors">
               В работу
             </button>
           )}
           {task.status !== "done" && (
-            <button
-              onClick={() => onStatusChange(task, "done")}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors"
-            >
+            <button onClick={() => { onStatusChange(task, "done"); setOpenMenu(null); }} className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors">
               Готово
             </button>
           )}
           {task.status === "done" && (
-            <button
-              onClick={() => onStatusChange(task, "todo")}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors"
-            >
+            <button onClick={() => { onStatusChange(task, "todo"); setOpenMenu(null); }} className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors">
               Вернуть
             </button>
           )}
-          <button
-            onClick={onEdit}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2"
-          >
+          <button onClick={onEdit} className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2">
             <Pencil size={14} /> Редактировать
           </button>
-          <button
-            onClick={onDelete}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2 text-red"
-          >
+          <button onClick={onDelete} className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2 text-red">
             <Trash2 size={14} /> Удалить
           </button>
         </div>

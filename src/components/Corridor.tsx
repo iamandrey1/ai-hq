@@ -4,6 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { useProfile } from "@/hooks/useProfile";
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
 
 const navItems = [
   { href: "/office", label: "Офис", badge: "live", icon: "◆" },
@@ -21,6 +24,21 @@ const financeItems = [
 export function Corridor() {
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useStore();
+  const { profile } = useProfile();
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const loadProfiles = async () => {
+      const { data } = await supabase.from("profiles").select("*");
+      if (data) setAllProfiles(data);
+    };
+    loadProfiles();
+  }, []);
+
+  const ceoNames = allProfiles.length > 0 
+    ? allProfiles.map(p => p.full_name?.split(" ")[0] || "CEO").join(" & ")
+    : "Jo & Андрей";
 
   return (
     <aside className="w-[240px] bg-bg-2 border-r border-line flex flex-col py-7 px-0 relative shrink-0">
@@ -98,19 +116,29 @@ export function Corridor() {
         </Link>
       ))}
 
-      {/* CEO Card */}
+      {/* CEO Card - динамически из БД */}
       <div className="mt-auto mx-4 p-3.5 bg-panel border border-line rounded-xl flex items-center gap-3">
         <div className="flex relative">
-          <div className="w-8 h-8 rounded-full bg-accent text-bg font-display font-semibold text-[13px] flex items-center justify-center border-2 border-panel">
-            J
-          </div>
-          <div className="w-8 h-8 rounded-full bg-blue text-ink font-display font-semibold text-[13px] flex items-center justify-center border-2 border-panel -ml-2.5">
-            A
-          </div>
+          {allProfiles.length > 0 ? (
+            allProfiles.slice(0, 2).map((p, i) => (
+              <div 
+                key={p.id}
+                className={`w-8 h-8 rounded-full font-display font-semibold text-[13px] flex items-center justify-center border-2 border-panel ${i === 0 ? "bg-accent text-bg" : "bg-blue text-ink"}`}
+                style={i === 1 ? { marginLeft: "-10px" } : {}}
+              >
+                {p.initials || p.full_name?.charAt(0) || "?"}
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="w-8 h-8 rounded-full bg-accent text-bg font-display font-semibold text-[13px] flex items-center justify-center border-2 border-panel">J</div>
+              <div className="w-8 h-8 rounded-full bg-blue text-ink font-display font-semibold text-[13px] flex items-center justify-center border-2 border-panel -ml-2.5">A</div>
+            </>
+          )}
         </div>
         <div className="text-xs leading-relaxed">
-          <b className="text-ink font-semibold block">CEO · 2</b>
-          <span className="text-ink-3 font-mono text-[10px]">Jo & Андрей</span>
+          <b className="text-ink font-semibold block">CEO · {allProfiles.length || 2}</b>
+          <span className="text-ink-3 font-mono text-[10px]">{ceoNames}</span>
         </div>
       </div>
     </aside>
