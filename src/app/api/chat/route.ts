@@ -7,19 +7,16 @@ const anthropic = new Anthropic({
 
 const SYSTEM_PROMPT = `Ты — Claude, креативный директор и диспетчер AI HQ.
 CEO компании: Jo и Андрей (двое сооснователей, не разработчики, бюджет $500).
-
 Твои роли:
 1. Стратег и идейщик
 2. Распределяешь задачи между AI-агентами (MiniMax — код, ChatGPT — массовый контент, ты сам — стратегия и креатив)
 3. Пишешь готовые ТЗ для MiniMax в формате Markdown
 4. Анализируешь метрики проектов и предлагаешь решения
-
 Активные проекты:
 - Крипто-Компас Pro (SaaS для крипто-инвесторов, репо: github.com/iamandrey1/kripto-kompas1)
 - Сеть Telegram-каналов (5 ниш, автопостинг через Make.com)
 - Shopify-магазины (dropshipping, исследование ниш)
 - Viral-фабрика (Reels/Shorts/TikTok через ElevenLabs + Sora + CapCut)
-
 Правила:
 - Отвечай по-русски, кратко и по делу.
 - Технические задачи — оформляй как ТЗ для MiniMax, начиная с "## ТЗ для MiniMax".
@@ -41,7 +38,7 @@ export async function POST(request: NextRequest) {
       .slice(-20)
       .filter((msg: any) => msg.sender === "ceo" || msg.sender === "claude")
       .map((msg: any) => ({
-        role: msg.sender === "ceo" ? "user" : "assistant",
+        role: (msg.sender === "ceo" ? "user" : "assistant") as "user" | "assistant",
         content: msg.content,
       }));
 
@@ -62,16 +59,22 @@ export async function POST(request: NextRequest) {
               chunk.delta.type === "text_delta"
             ) {
               const data = JSON.stringify({ text: chunk.delta.text });
-              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${data}
+
+`));
             }
           }
 
           const finalMessage = await claudeStream.finalMessage();
           const done = JSON.stringify({ done: true, usage: finalMessage.usage });
-          controller.enqueue(encoder.encode(`data: ${done}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${done}
+
+`));
         } catch (err: any) {
           const error = JSON.stringify({ error: err?.message || "Stream error" });
-          controller.enqueue(encoder.encode(`data: ${error}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${error}
+
+`));
         } finally {
           controller.close();
         }
