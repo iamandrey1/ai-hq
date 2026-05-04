@@ -23,6 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "AI HQ — Операционный центр CEO",
   description: "Единая панель управления бизнесами Jo и Андрея. AI-команда, проекты, задачи.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
