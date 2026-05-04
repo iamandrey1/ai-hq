@@ -1,100 +1,324 @@
 "use client";
 
 import { Corridor } from "@/components/Corridor";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Plus, MoreVertical, Pencil, Pause, Trash2, X } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
-const budgetItems = [
-  { name: "Anthropic Claude API", category: "AI", cost: 180, trend: "+12%", color: "text-accent" },
-  { name: "Vercel Pro", category: "Infrastructure", cost: 120, trend: "+5%", color: "text-ink" },
-  { name: "Supabase Pro", category: "Database", cost: 75, trend: "0%", color: "text-ink" },
-  { name: "OpenAI API", category: "AI", cost: 45, trend: "+8%", color: "text-accent" },
-  { name: "Make.com", category: "Automation", cost: 29, trend: "0%", color: "text-ink" },
-  { name: "Domain & SSL", category: "Other", cost: 12, trend: "0%", color: "text-ink" },
-];
+const categoryLabels: Record<string, string> = {
+  ai: "AI",
+  content: "Контент",
+  automation: "Автоматизация",
+  hosting: "Хостинг",
+  other: "Другое",
+};
 
-const totalBudget = budgetItems.reduce((sum, item) => sum + item.cost, 0);
+const categoryColors: Record<string, string> = {
+  ai: "text-accent",
+  content: "text-blue",
+  automation: "text-green",
+  hosting: "text-ink-2",
+  other: "text-ink-3",
+};
+
+const BUDGET_MONTHLY = 500;
 
 export default function BudgetPage() {
+  const { subs, loading, total, byCategory, createSub, updateSub, deleteSub } = useSubscriptions();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingSub, setEditingSub] = useState<any>(null);
+  const [confirmDelete, setConfirmDelete] = useState<any>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    service: "",
+    category: "ai" as string,
+    cost_monthly_usd: 0,
+    status: "active" as string,
+    notes: "",
+  });
+
+  const progress = Math.min((total / BUDGET_MONTHLY) * 100, 100);
+
+  const handleSubmit = async () => {
+    if (!form.service.trim()) {
+      toast.error("Название сервиса обязательно");
+      return;
+    }
+    if (editingSub?.id) {
+      await updateSub(editingSub.id, form);
+      toast.success("Подписка обновлена");
+    } else {
+      await createSub(form as any);
+      toast.success("Подписка добавлена");
+    }
+    setModalOpen(false);
+    setEditingSub(null);
+    setForm({ service: "", category: "ai", cost_monthly_usd: 0, status: "active", notes: "" });
+  };
+
+  const handleStatusChange = async (sub: any, status: string) => {
+    await updateSub(sub.id, { status });
+    toast.success(`Статус: ${status === "paused" ? "На паузе" : status === "active" ? "Активна" : "Отменена"}`);
+    setOpenMenu(null);
+  };
+
   return (
     <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
       <Corridor />
       <main className="flex-1 overflow-y-auto px-10 py-8 pb-16 relative bg-bg">
-        <div className="mb-8">
-          <h1 className="font-display text-[32px] font-medium tracking-[-0.01em] mb-2">
-            <em style={{ fontStyle: "italic", color: "var(--accent)" }}>Бюджет</em>
-          </h1>
-          <p className="text-ink-3 text-sm">Расходы на AI и инфраструктуру</p>
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <h1 className="font-display text-[32px] font-medium tracking-[-0.01em] mb-2">
+              <em style={{ fontStyle: "italic", color: "var(--accent)" }}>Бюджет</em>
+            </h1>
+            <p className="text-ink-3 text-sm">Управление подписками и расходами</p>
+          </div>
+          <button
+            onClick={() => { setEditingSub(null); setForm({ service: "", category: "ai", cost_monthly_usd: 0, status: "active", notes: "" }); setModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-accent text-bg rounded-lg text-sm font-medium hover:bg-accent-2 transition-colors"
+          >
+            <Plus size={18} />
+            Добавить подписку
+          </button>
         </div>
 
-        {/* Total */}
-        <div className="bg-gradient-to-br from-panel to-panel-2 border border-line rounded-2xl p-6 mb-8">
-          <div className="font-mono text-[11px] text-ink-3 uppercase tracking-[0.15em] mb-2">
-            Месячный расход
+        {/* Total Budget Card */}
+        <div className="bg-gradient-to-br from-panel to-panel-2 border border-line rounded-2xl p-6 mb-6">
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Месячный расход</div>
+              <div className="font-display text-[48px] font-medium tracking-[-0.02em]">${total.toFixed(0)}</div>
+            </div>
+            <div className="text-right">
+              <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Бюджет</div>
+              <div className="font-display text-[24px] text-ink-2">${BUDGET_MONTHLY}</div>
+            </div>
           </div>
-          <div className="font-display text-[48px] font-medium tracking-[-0.02em] text-accent">
-            ${totalBudget}
-            <span className="text-[18px] text-ink-3 ml-2">/мес</span>
+          <div className="h-2 bg-bg rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-accent to-accent-2 rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
           </div>
-          <div className="mt-2 text-ink-3 text-sm">
-            На <span className="text-accent">${(totalBudget * 12).toLocaleString()}</span> в год при текущем использовании
+          <div className="flex justify-between mt-2 font-mono text-[10px] text-ink-3">
+            <span>Использовано</span>
+            <span>{progress.toFixed(0)}%</span>
           </div>
         </div>
 
-        {/* Breakdown */}
-        <div className="mb-6">
-          <h2 className="font-display text-[22px] font-medium mb-4">
-            Детализация <em style={{ fontStyle: "italic", color: "var(--accent)", fontWeight: 400 }}>по сервисам</em>
-          </h2>
-          <div className="space-y-3">
-            {budgetItems.map((item, i) => (
-              <div
-                key={i}
-                className="bg-panel border border-line rounded-lg p-4 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-panel-2 flex items-center justify-center">
-                    <span className="font-mono text-[10px] text-ink-3 uppercase">{item.category.slice(0, 2)}</span>
-                  </div>
-                  <div>
-                    <div className="font-medium text-[14px]">{item.name}</div>
-                    <div className="font-mono text-[10px] text-ink-3 uppercase">{item.category}</div>
-                  </div>
+        {/* Category Cards */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          {(["ai", "content", "automation", "hosting"] as const).map((cat) => {
+            const catSubs = subs.filter(s => s.category === cat && s.status === "active");
+            const catTotal = byCategory[cat] || 0;
+            return (
+              <div key={cat} className="bg-panel border border-line rounded-xl p-4">
+                <div className={`font-mono text-[10px] ${categoryColors[cat]} uppercase tracking-[0.12em] mb-2`}>
+                  {categoryLabels[cat]}
                 </div>
-                <div className="text-right">
-                  <div className={`font-display text-xl font-medium ${item.color}`}>${item.cost}</div>
-                  <div className={`font-mono text-[10px] ${item.trend !== "0%" ? "text-accent" : "text-ink-3"}`}>
-                    {item.trend} к прошлому месяцу
-                  </div>
+                <div className="font-display text-[28px] font-medium mb-1">${catTotal.toFixed(0)}</div>
+                <div className="font-mono text-[10px] text-ink-3">{catSubs.length} подписок</div>
+                <div className="h-1 bg-line rounded mt-3 overflow-hidden">
+                  <div
+                    className="h-full bg-current rounded"
+                    style={{ width: `${BUDGET_MONTHLY ? (catTotal / BUDGET_MONTHLY) * 100 : 0}%`, backgroundColor: cat === "ai" ? "var(--accent)" : cat === "content" ? "var(--blue)" : cat === "automation" ? "var(--green)" : "var(--ink-2)" }}
+                  />
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Usage Chart Placeholder */}
-        <div className="bg-panel border border-line rounded-xl p-6">
-<div className="font-mono text-[11px] text-ink-3 uppercase tracking-[0.15em] mb-4">
-            Распределение расходов
+        {/* Subscriptions Table */}
+        <div className="bg-panel border border-line rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-line">
+            <h2 className="font-display text-lg">Все подписки</h2>
           </div>
-          <div className="flex h-4 rounded-full overflow-hidden mb-4">
-            {budgetItems.map((item, i) => (
-              <div
-                key={i}
-                className={`${i === 0 ? "bg-accent" : i === 1 ? "bg-blue" : i === 2 ? "bg-green" : i === 3 ? "bg-accent-2" : i === 4 ? "bg-[#4a7d5a]" : "bg-ink-3"}`}
-                style={{ width: `${(item.cost / totalBudget) * 100}%` }}
-              />
-            ))}
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-[10px]">
-            {budgetItems.slice(0, 3).map((item, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${i === 0 ? "bg-accent" : i === 1 ? "bg-blue" : "bg-green"}`} />
-                <span className="text-ink-3">{item.name}: ${item.cost}</span>
-              </div>
-            ))}
-          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-line">
+                <th className="px-6 py-3 text-left font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">Сервис</th>
+                <th className="px-6 py-3 text-left font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">Категория</th>
+                <th className="px-6 py-3 text-right font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">$/мес</th>
+                <th className="px-6 py-3 text-center font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">Статус</th>
+                <th className="px-6 py-3 text-left font-mono text-[10px] text-ink-3 uppercase tracking-[0.12em]">Заметка</th>
+                <th className="px-6 py-3 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-ink-3">Загрузка...</td>
+                </tr>
+              ) : subs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-ink-3">Нет подписок. Добавьте первую.</td>
+                </tr>
+              ) : subs.map((sub) => (
+                <tr key={sub.id} className="border-b border-line last:border-0 hover:bg-panel-2/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-sm">{sub.service}</td>
+                  <td className="px-6 py-4">
+                    <span className={`font-mono text-[10px] px-2 py-1 rounded ${categoryColors[sub.category]} bg-bg`}>
+                      {categoryLabels[sub.category]}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono text-sm">${Number(sub.cost_monthly_usd).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`font-mono text-[10px] px-2 py-1 rounded ${
+                      sub.status === "active" ? "bg-green/20 text-green" :
+                      sub.status === "paused" ? "bg-accent/20 text-accent" : "bg-line text-ink-3"
+                    }`}>
+                      {sub.status === "active" ? "Активна" : sub.status === "paused" ? "На паузе" : "Отменена"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-ink-2 truncate max-w-[200px]">{sub.notes || "—"}</td>
+                  <td className="px-6 py-4 relative">
+                    <button
+                      onClick={() => setOpenMenu(openMenu === sub.id ? null : sub.id)}
+                      className="p-1 hover:bg-panel rounded transition-colors"
+                    >
+                      <MoreVertical size={16} className="text-ink-3" />
+                    </button>
+                    {openMenu === sub.id && (
+                      <div className="absolute right-6 top-full mt-1 bg-panel-2 border border-line rounded-lg shadow-xl z-10 py-1 min-w-[140px]">
+                        <button
+                          onClick={() => { setEditingSub(sub); setForm({ service: sub.service, category: sub.category, cost_monthly_usd: Number(sub.cost_monthly_usd), status: sub.status, notes: sub.notes || "" }); setModalOpen(true); setOpenMenu(null); }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2"
+                        >
+                          <Pencil size={14} /> Редактировать
+                        </button>
+                        {sub.status === "active" && (
+                          <button
+                            onClick={() => handleStatusChange(sub, "paused")}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2"
+                          >
+                            <Pause size={14} /> На паузу
+                          </button>
+                        )}
+                        {sub.status === "paused" && (
+                          <button
+                            onClick={() => handleStatusChange(sub, "active")}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors"
+                          >
+                            Активировать
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setConfirmDelete(sub); setOpenMenu(null); }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-panel transition-colors flex items-center gap-2 text-red"
+                        >
+                          <Trash2 size={14} /> Удалить
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </main>
+
+      {/* Add/Edit Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-panel border border-line rounded-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+              <h2 className="font-display text-xl">{editingSub ? "Редактировать подписку" : "Новая подписка"}</h2>
+              <button onClick={() => setModalOpen(false)} className="p-1 hover:bg-panel-2 rounded-lg">
+                <X size={20} className="text-ink-3" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Сервис *</label>
+                <input
+                  type="text"
+                  value={form.service}
+                  onChange={(e) => setForm({ ...form, service: e.target.value })}
+                  className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
+                  placeholder="Anthropic Claude"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Категория</label>
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
+                  >
+                    <option value="ai">AI</option>
+                    <option value="content">Контент</option>
+                    <option value="automation">Автоматизация</option>
+                    <option value="hosting">Хостинг</option>
+                    <option value="other">Другое</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">$/мес</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.cost_monthly_usd}
+                    onChange={(e) => setForm({ ...form, cost_monthly_usd: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Статус</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
+                >
+                  <option value="active">Активна</option>
+                  <option value="paused">На паузе</option>
+                  <option value="cancelled">Отменена</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Заметка</label>
+                <textarea
+                  value={form.notes || ""}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  rows={2}
+                  className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none resize-none"
+                  placeholder="API key для..."
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 bg-panel border border-line rounded-lg text-ink hover:bg-panel-2 transition-colors"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  className="flex-1 px-4 py-2.5 bg-accent text-bg rounded-lg text-sm font-medium hover:bg-accent-2 transition-colors"
+                >
+                  {editingSub ? "Сохранить" : "Добавить"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Удалить подписку?"
+          message={`Подписка "${confirmDelete.service}" будет удалена.`}
+          confirmText="Удалить"
+          variant="danger"
+          onConfirm={async () => { await deleteSub(confirmDelete.id); toast.success("Подписка удалена"); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }
