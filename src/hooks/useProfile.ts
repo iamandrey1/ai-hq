@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/types";
+import type { Profile } from "@/types/index";
 
 export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(null);

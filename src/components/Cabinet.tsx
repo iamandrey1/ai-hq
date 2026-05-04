@@ -4,6 +4,7 @@ import { formatTime } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
+import { useChatMessages } from "@/hooks/useChatMessages";
 
 const agentColors: Record<string, string> = {
   claude: "bg-accent text-bg",
@@ -32,6 +33,7 @@ export function Cabinet() {
   const [isTyping, setIsTyping] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
+  const { sendMessage: saveMessageToDB } = useChatMessages();
 
   useEffect(() => {
     if (feedRef.current) {
@@ -47,6 +49,8 @@ export function Cabinet() {
     if (!inputValue.trim()) return;
     const userInput = inputValue.trim();
     
+    // Save to Supabase and add to local store
+    await saveMessageToDB(userInput, "ceo", senderName);
     addMessage({
       sender: "ceo",
       senderName: senderName,
@@ -75,10 +79,10 @@ export function Cabinet() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-      const messageId = Date.now().toString();
 
+      // Create placeholder for Claude response
       addMessage({
-        id: messageId,
+        id: `claude-${Date.now()}`,
         sender: "claude",
         senderName: "Claude",
         content: "",
@@ -98,12 +102,17 @@ export function Cabinet() {
               fullText += data.text;
               useStore.setState((state) => ({
                 messages: state.messages.map((m) =>
-                  m.id === messageId ? { ...m, content: fullText } : m
+                  m.id === `claude-${Date.now()}` ? { ...m, content: fullText } : m
                 ),
               }));
             }
           } catch {}
         }
+      }
+
+      // Save Claude response to Supabase
+      if (fullText) {
+        await saveMessageToDB(fullText, "claude", "Claude");
       }
     } catch (err: any) {
       setIsTyping(false);

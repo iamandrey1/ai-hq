@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Project } from "@/types";
+import type { Project } from "@/types/index";
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
