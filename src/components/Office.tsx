@@ -53,6 +53,14 @@ export function Office() {
     ? profile.full_name.split(" ")[0]
     : "команда";
 
+  // Time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 12) return "Доброе утро";
+    if (hour >= 12 && hour < 16) return "Хорошего дня";
+    return "Добрый вечер";
+  };
+
   const activeProjects = projects.filter((p) => p.status === "active");
   const claudeMessages = messages.filter((m) => m.sender === "claude").length;
   const activeTasks = projects.length;
