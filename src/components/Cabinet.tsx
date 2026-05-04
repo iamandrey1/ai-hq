@@ -44,6 +44,7 @@ export function Cabinet() {
     const userInput = inputValue.trim();
 
     addMessage({
+      id: Date.now().toString(),
       sender: "ceo",
       senderName: "Jo (CEO)",
       content: userInput,
@@ -76,6 +77,7 @@ export function Cabinet() {
 
       // Добавляем пустое сообщение Claude и будем обновлять его
       addMessage({
+      id: Date.now().toString(),
         sender: "claude",
         senderName: "Claude",
         content: "",
@@ -109,6 +111,7 @@ export function Cabinet() {
     } catch (err: any) {
       setIsTyping(false);
       addMessage({
+      id: Date.now().toString(),
         sender: "claude",
         senderName: "Claude",
         content: `⚠️ Ошибка: ${err?.message || "Неизвестная ошибка"}. Проверьте API ключ в настройках.`,
