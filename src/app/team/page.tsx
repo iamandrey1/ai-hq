@@ -2,25 +2,26 @@
 
 import { Corridor } from "@/components/Corridor";
 import { useStore } from "@/lib/store";
+import { useProfile } from "@/hooks/useProfile";
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
+import type { Profile } from "@/types/index";
 
 const agentColors: Record<string, string> = {
   claude: "bg-accent text-bg",
   minimax: "bg-blue",
   chatgpt: "bg-[#4a7d5a] text-ink",
 };
-
 const agentLabels: Record<string, string> = {
   claude: "CL",
   minimax: "MM",
   chatgpt: "GP",
 };
-
 const statusLabels: Record<string, string> = {
   busy: "Занят",
   idle: "Свободен",
   queue: "В очереди",
 };
-
 const statusColors: Record<string, string> = {
   busy: "bg-accent/15 text-accent",
   idle: "bg-green/15 text-green",
@@ -29,6 +30,17 @@ const statusColors: Record<string, string> = {
 
 export default function TeamPage() {
   const { agents } = useStore();
+  const { profile: currentUser } = useProfile();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const loadProfiles = async () => {
+      const { data } = await supabase.from("profiles").select("*");
+      if (data) setProfiles(data);
+    };
+    loadProfiles();
+  }, []);
 
   return (
     <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
@@ -43,7 +55,51 @@ export default function TeamPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-6 mb-10">
+        {/* CEO Team */}
+        <h2 className="font-display text-[22px] font-medium mb-4">
+          CEO <em style={{ fontStyle: "italic", color: "var(--accent)", fontWeight: 400 }}>команда</em>
+        </h2>
+        <div className="grid grid-cols-2 gap-4 mb-10">
+          {profiles.map((p) => (
+            <div
+              key={p.id}
+              className="bg-panel border border-line rounded-xl p-5 flex items-center gap-4"
+            >
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-lg ${
+                  p.id === currentUser?.id
+                    ? "bg-accent text-bg"
+                    : "bg-blue text-ink"
+                }`}
+              >
+                {p.initials || p.full_name?.charAt(0) || "?"}
+              </div>
+              <div>
+                <div className="font-display text-lg font-medium">
+                  {p.full_name || "Неизвестно"}
+                  {p.id === currentUser?.id && (
+                    <span className="ml-2 font-mono text-[10px] text-accent">(вы)</span>
+                  )}
+                </div>
+                <div className="font-mono text-[10px] text-ink-3 uppercase">
+                  {p.role === "ceo" ? "CEO · Основатель" : p.role}
+                </div>
+              </div>
+              <div className="ml-auto">
+                <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-1 rounded bg-green/15 text-green">
+                  <span className="w-1.5 h-1.5 bg-green rounded-full" />
+                  Online
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* AI Agents */}
+        <h2 className="font-display text-[22px] font-medium mb-4">
+          AI-<em style={{ fontStyle: "italic", color: "var(--accent)", fontWeight: 400 }}>агенты</em>
+        </h2>
+        <div className="grid grid-cols-2 gap-6">
           {agents.map((agent) => (
             <div
               key={agent.id}
@@ -65,31 +121,6 @@ export default function TeamPage() {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Human Team */}
-        <h2 className="font-display text-[22px] font-medium mb-4">
-          Люди <em style={{ fontStyle: "italic", color: "var(--accent)", fontWeight: 400 }}>в команде</em>
-        </h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-panel border border-line rounded-xl p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-accent text-bg font-display font-bold text-lg flex items-center justify-center">
-              J
-            </div>
-            <div>
-              <div className="font-display text-lg font-medium">Jo</div>
-              <div className="font-mono text-[10px] text-ink-3 uppercase">CEO · Основатель</div>
-            </div>
-          </div>
-          <div className="bg-panel border border-line rounded-xl p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-blue text-ink font-display font-bold text-lg flex items-center justify-center">
-              A
-            </div>
-            <div>
-              <div className="font-display text-lg font-medium">Андрей</div>
-              <div className="font-mono text-[10px] text-ink-3 uppercase">CEO · Основатель</div>
-            </div>
-          </div>
         </div>
       </main>
     </div>

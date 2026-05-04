@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Manrope, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -35,7 +36,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className={`${fraunces.variable} ${manrope.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen relative z-10">{children}</body>
+      <body className="min-h-screen relative z-10">
+        <Toaster position="top-right" theme="dark" richColors />
+        {children}
+      </body>
     </html>
   );
 }
