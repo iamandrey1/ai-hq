@@ -3,6 +3,7 @@ import { useStore } from "@/lib/store";
 import { formatTime } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { Send, Loader2 } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
 
 const agentColors: Record<string, string> = {
   claude: "bg-accent text-bg",
@@ -30,6 +31,7 @@ export function Cabinet() {
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
+  const { profile } = useProfile();
 
   useEffect(() => {
     if (feedRef.current) {
@@ -37,14 +39,17 @@ export function Cabinet() {
     }
   }, [messages, isTyping]);
 
+  const senderName = profile?.full_name 
+    ? profile.full_name.split(" ")[0] + (profile.role === "ceo" ? " (CEO)" : "")
+    : "Jo (CEO)";
+
   const handleSend = async () => {
     if (!inputValue.trim()) return;
     const userInput = inputValue.trim();
     
     addMessage({
-      id: Date.now().toString(),
       sender: "ceo",
-      senderName: "Jo (CEO)",
+      senderName: senderName,
       content: userInput,
     });
     
@@ -54,7 +59,7 @@ export function Cabinet() {
     try {
       const allMessages = [
         ...messages,
-        { sender: "ceo", senderName: "Jo (CEO)", content: userInput },
+        { sender: "ceo", senderName: senderName, content: userInput },
       ];
 
       const response = await fetch("/api/chat", {
@@ -70,7 +75,7 @@ export function Cabinet() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-      let messageId = Date.now().toString();
+      const messageId = Date.now().toString();
 
       addMessage({
         id: messageId,
@@ -103,7 +108,6 @@ export function Cabinet() {
     } catch (err: any) {
       setIsTyping(false);
       addMessage({
-        id: Date.now().toString(),
         sender: "claude",
         senderName: "Claude",
         content: `⚠️ Ошибка: ${err?.message || "Неизвестная ошибка"}. Проверьте API ключ в настройках.`,

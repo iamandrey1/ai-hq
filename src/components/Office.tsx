@@ -4,12 +4,15 @@ import { useStore } from "@/lib/store";
 import { formatTime, formatDate } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useProfile } from "@/hooks/useProfile";
+import { useProjects } from "@/hooks/useProjects";
 
 const categoryColors: Record<string, string> = {
   crypto: "bg-accent text-bg",
   telegram: "bg-blue text-ink",
   shopify: "bg-green text-bg",
   viral: "bg-red text-ink",
+  other: "bg-ink-2 text-bg",
 };
 
 const categoryLabels: Record<string, string> = {
@@ -17,6 +20,7 @@ const categoryLabels: Record<string, string> = {
   telegram: "Telegram",
   shopify: "Shopify",
   viral: "Viral",
+  other: "Other",
 };
 
 const agentColors: Record<string, string> = {
@@ -32,29 +36,26 @@ const agentLabels: Record<string, string> = {
 };
 
 export function Office() {
-  const { projects, agents, messages, addMessage } = useStore();
+  const { agents, messages } = useStore();
   const [time, setTime] = useState(new Date());
-  const [inputValue, setInputValue] = useState("");
+  const { profile } = useProfile();
+  const { projects: dbProjects, loading: projectsLoading } = useProjects();
+  
+  // Use DB projects if available, otherwise fallback to store
+  const projects = dbProjects.length > 0 ? dbProjects : useStore.getState().projects;
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
-    addMessage({
-      id: crypto.randomUUID(),
-      sender: "ceo",
-      senderName: "Jo (CEO)",
-      content: inputValue.trim(),
-    });
-    setInputValue("");
-  };
+  const userName = profile?.full_name 
+    ? profile.full_name.split(" ")[0]
+    : "команда";
 
   const activeProjects = projects.filter((p) => p.status === "active");
   const claudeMessages = messages.filter((m) => m.sender === "claude").length;
-  const activeTasks = 4;
+  const activeTasks = projects.length;
 
   return (
     <main className="flex-1 overflow-y-auto px-10 py-8 pb-16 relative">
@@ -66,10 +67,10 @@ export function Office() {
             {formatDate(time)}
           </div>
           <h1 className="font-display font-normal text-[38px] leading-tight tracking-[-0.02em] mb-2.5">
-            Доброе утро, <em style={{ fontStyle: "italic", color: "var(--accent)" }}>команда.</em>
+            Доброе утро, <em style={{ fontStyle: "italic", color: "var(--accent)" }}>{userName}.</em>
           </h1>
           <p className="text-ink-3 text-sm">
-            Claude и MiniMax готовы к работе. {activeTasks} задачи в очереди, 1 ждёт вашего решения.
+            Claude и MiniMax готовы к работе. {activeTasks} проекта в работе, {claudeMessages} задач выполнено.
           </p>
         </div>
         <div className="font-mono text-[11px] text-ink-3 text-right leading-loose">
@@ -113,8 +114,8 @@ export function Office() {
             <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.1em] mt-1">ТЗ выдано</div>
           </div>
           <div>
-            <div className="font-display text-[28px] font-medium tracking-[-0.02em] leading-tight">{activeTasks}</div>
-            <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.1em] mt-1">Активно</div>
+            <div className="font-display text-[28px] font-medium tracking-[-0.02em] leading-tight">{activeProjects.length}</div>
+            <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.1em] mt-1">Проектов</div>
           </div>
           <div>
             <div className="font-display text-[28px] font-medium tracking-[-0.02em] leading-tight" style={{ color: "var(--green)" }}>
@@ -129,52 +130,63 @@ export function Office() {
       <div className="flex items-baseline justify-between mb-4.5">
         <div className="font-display text-[22px] font-medium tracking-[-0.01em]">
           Текущие <em style={{ fontStyle: "italic", color: "var(--accent)", fontWeight: 400 }}>проекты</em>
-        </div>
+</div>
         <Link href="/projects" className="font-mono text-[11px] text-ink-3 uppercase tracking-[0.12em] hover:text-accent transition-colors">
           Открыть все →
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-9">
-        {activeProjects.map((project) => (
-          <div
-            key={project.id}
-            className="bg-panel border border-line rounded-xl p-5 cursor-pointer transition-all duration-250 hover:border-line-2 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)] relative overflow-hidden group"
-          >
+      {projectsLoading ? (
+        <div className="text-center py-8">
+          <div className="font-mono text-[10px] text-ink-3">Загрузка проектов...</div>
+        </div>
+      ) : activeProjects.length === 0 ? (
+        <div className="text-center py-8 mb-9">
+          <div className="font-display text-[16px] mb-2">Нет активных проектов</div>
+          <div className="text-ink-3 text-[12px]">Скоро здесь появятся проекты из базы данных</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 mb-9">
+          {activeProjects.slice(0, 4).map((project) => (
             <div
-              className={`absolute top-0 right-5 font-mono text-[9px] ${categoryColors[project.category]} px-2.5 py-1 rounded-b-md uppercase tracking-[0.12em] font-semibold`}
+              key={project.id}
+              className="bg-panel border border-line rounded-xl p-5 cursor-pointer transition-all duration-250 hover:border-line-2 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)] relative overflow-hidden group"
             >
-              {categoryLabels[project.category]}
-            </div>
-            <div className="font-display text-[19px] font-medium mb-1.5 mt-4">{project.name}</div>
-            <div className="text-[12px] text-ink-3 mb-4 leading-relaxed line-clamp-2">{project.description}</div>
-            <div className="flex items-center justify-between pt-3.5 border-t border-line">
-              <div className="flex-1 mr-3.5">
-                <div className="flex justify-between font-mono text-[10px] text-ink-3 uppercase tracking-[0.08em] mb-1.5">
-                  <span>Прогресс</span>
-                  <b className="text-ink font-medium">{project.progress}%</b>
-                </div>
-                <div className="h-[3px] bg-line rounded overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-accent to-accent-2 rounded"
-                    style={{ width: `${project.progress}%` }}
-                  />
-                </div>
+              <div
+                className={`absolute top-0 right-5 font-mono text-[9px] ${categoryColors[project.category] || categoryColors.other} px-2.5 py-1 rounded-b-md uppercase tracking-[0.12em] font-semibold`}
+              >
+                {categoryLabels[project.category] || "Other"}
               </div>
-              <div className="flex">
-                {project.agents.map((agent, i) => (
-                  <div
-                    key={agent}
-                    className={`w-[26px] h-[26px] rounded-full ${agentColors[agent]} border-2 border-panel flex items-center justify-center font-mono text-[9px] font-semibold -ml-2 first:ml-0`}
-                  >
-                    {agentLabels[agent]}
+              <div className="font-display text-[19px] font-medium mb-1.5 mt-4">{project.name}</div>
+              <div className="text-[12px] text-ink-3 mb-4 leading-relaxed line-clamp-2">{project.description}</div>
+              <div className="flex items-center justify-between pt-3.5 border-t border-line">
+                <div className="flex-1 mr-3.5">
+                  <div className="flex justify-between font-mono text-[10px] text-ink-3 uppercase tracking-[0.08em] mb-1.5">
+                    <span>Прогресс</span>
+                    <b className="text-ink font-medium">{project.progress}%</b>
                   </div>
-                ))}
+                  <div className="h-[3px] bg-line rounded overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-accent to-accent-2 rounded"
+                      style={{ width: `${project.progress}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="flex">
+                  {project.agents?.map((agent) => (
+                    <div
+                      key={agent}
+                      className={`w-[26px] h-[26px] rounded-full ${agentColors[agent] || agentColors.claude} border-2 border-panel flex items-center justify-center font-mono text-[9px] font-semibold -ml-2 first:ml-0`}
+                    >
+                      {agentLabels[agent] || "CL"}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Team Section */}
       <div className="flex items-baseline justify-between mb-4.5">

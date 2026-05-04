@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI HQ — Операционный центр CEO</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0d0b; --bg-2: #15130f; --panel: #1a1714; --panel-2: #221d18;
+    --line: #2a2520; --line-2: #3a322a; --ink: #f4ede0; --ink-2: #c8bfae; --ink-3: #8a8273;
+    --accent: #d4a45c; --accent-2: #e8c98a; --green: #7fb069; --red: #d97757; --blue: #6b8caf;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: 'Manrope', sans-serif; background: var(--bg); color: var(--ink); overflow: hidden; font-feature-settings: "ss01"; -webkit-font-smoothing: antialiased; }
+  body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at 20% 10%, rgba(212,164,92,0.08), transparent 40%), radial-gradient(circle at 80% 90%, rgba(107,140,175,0.06), transparent 40%); pointer-events: none; z-index: 0; }
+  body::after { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.03; pointer-events: none; z-index: 1; mix-blend-mode: overlay; }
+  .app { position: relative; z-index: 2; display: grid; grid-template-columns: 240px 1fr 380px; height: 100vh; }
+  .corridor { background: var(--bg-2); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 28px 0; }
+  .brand { padding: 0 24px 28px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+  .brand-mark { font-family: 'Fraunces', serif; font-weight: 600; font-size: 26px; letter-spacing: -0.02em; line-height: 1; font-style: italic; }
+  .brand-mark span { color: var(--accent); font-style: normal; }
+  .brand-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); letter-spacing: 0.15em; text-transform: uppercase; margin-top: 8px; }
+  .nav-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-3); padding: 0 24px; margin-bottom: 10px; margin-top: 18px; }
+  .door { display: flex; align-items: center; gap: 12px; padding: 11px 24px; cursor: pointer; color: var(--ink-2); border-left: 2px solid transparent; transition: all 0.2s; font-size: 14px; font-weight: 500; text-decoration: none; }
+  .door:hover { background: var(--panel); color: var(--ink); }
+  .door.active { background: linear-gradient(90deg, rgba(212,164,92,0.12), transparent); border-left-color: var(--accent); color: var(--ink); }
+  .door-icon { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: var(--ink-3); }
+  .door.active .door-icon { color: var(--accent); }
+  .door-badge { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; background: var(--panel-2); color: var(--ink-2); padding: 2px 7px; border-radius: 8px; }
+  .door.active .door-badge { background: var(--accent); color: var(--bg); }
+  .ceo-card { margin: auto 16px 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; gap: 12px; }
+  .ceo-avatars { display: flex; }
+  .ceo-av { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--bg); font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--panel); }
+  .ceo-av:nth-child(2) { margin-left: -10px; background: var(--blue); color: var(--ink); }
+  .ceo-info { font-size: 12px; line-height: 1.4; }
+  .ceo-info b { color: var(--ink); font-weight: 600; display: block; }
+  .ceo-info span { color: var(--ink-3); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+  .office { overflow-y: auto; padding: 32px 40px 60px; }
+  .office::-webkit-scrollbar { width: 8px; }
+  .office::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+  .greet-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-3); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 8px; }
+  .greet-eyebrow .dot { display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; margin-right: 8px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+  .greet { font-family: 'Fraunces', serif; font-weight: 400; font-size: 38px; line-height: 1.1; letter-spacing: -0.02em; }
+  .greet em { font-style: italic; color: var(--accent); }
+  .greet-sub { color: var(--ink-3); margin-top: 10px; font-size: 14px; }
+  .clock { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-3); line-height: 1.7; }
+  .clock b { color: var(--ink); font-weight: 500; font-size: 13px; }
+  .employee { background: linear-gradient(135deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: 16px; padding: 24px; display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center; margin-bottom: 32px; position: relative; overflow: hidden; }
+  .employee::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 0% 0%, rgba(212,164,92,0.08), transparent 50%); pointer-events: none; }
+  .emp-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--bg); display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-weight: 700; font-size: 32px; font-style: italic; box-shadow: 0 8px 24px rgba(212,164,92,0.25); position: relative; }
+  .emp-avatar::after { content: ''; position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px; background: var(--green); border-radius: 50%; border: 3px solid var(--panel); }
+  .emp-name { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .emp-role { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+  .emp-status { display: inline-flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--green); letter-spacing: 0.1em; text-transform: uppercase; }
+  .emp-stats { display: flex; gap: 28px; text-align: right; }
+  .stat-block .num { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 500; }
+  .stat-block .lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; }
+  .section-title { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 500; }
+  .section-title em { font-style: italic; color: var(--accent); font-weight: 400; }
+  .section-link { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.12em; cursor: pointer; text-decoration: none; transition: color 0.2s; }
+  .section-link:hover { color: var(--accent); }
+  .projects { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 36px; }
+  .project { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden; }
+  .project:hover { border-color: var(--line-2); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .project-tag { position: absolute; top: 0; right: 20px; font-family: 'JetBrains Mono', monospace; font-size: 9px; background: var(--accent); color: var(--bg); padding: 4px 10px; border-radius: 0 0 6px 6px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+  .project-tag.tg { background: var(--blue); color: var(--ink); }
+  .project-tag.shop { background: var(--green); color: var(--bg); }
+  .project-tag.viral { background: var(--red); color: var(--ink); }
+  .project-name { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 500; margin-bottom: 6px; margin-top: 16px; }
+  .project-desc { font-size: 12px; color: var(--ink-3); margin-bottom: 16px; line-height: 1.5; }
+  .project-meta { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--line); }
+  .progress-wrap { flex: 1; margin-right: 14px; }
+  .progress-row { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); margin-bottom: 6px; text-transform: uppercase; }
+  .progress-row b { color: var(--ink); font-weight: 500; }
+  .progress-bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 2px; }
+  .project-agents { display: flex; }
+  .agent-pill { width: 26px; height: 26px; border-radius: 50%; background: var(--panel-2); border: 2px solid var(--panel); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 9px;font-weight: 600; color: var(--ink-2); margin-left: -8px; }
+  .agent-pill:first-child { margin-left: 0; }
+  .agent-pill.cl { background: var(--accent); color: var(--bg); }
+  .agent-pill.mm { background: var(--blue); }
+  .agent-pill.gpt { background: #4a7d5a; color: var(--ink); }
+  .team { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 36px; }
+  .team-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+  .team-avi { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .team-avi.cl { background: var(--accent); color: var(--bg); }
+  .team-avi.mm { background: var(--blue); color: var(--ink); }
+  .team-avi.gpt { background: #4a7d5a; color: var(--ink); }
+  .team-info { flex: 1; min-width: 0; }
+  .team-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .team-role { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; }
+  .team-state { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 4px 8px; border-radius: 6px; flex-shrink: 0; }
+  .team-state.busy { background: rgba(212,164,92,0.15); color: var(--accent); }
+  .team-state.idle { background: rgba(127,176,105,0.15); color: var(--green); }
+  .team-state.queue { background: rgba(107,140,175,0.15); color: var(--blue); }
+  .cabinet { background: var(--bg-2); border-left: 1px solid var(--line); display: flex; flex-direction: column; height: 100vh; }
+  .cab-head { padding: 22px 22px 16px; border-bottom: 1px solid var(--line); }
+  .cab-title { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 500; margin-bottom: 2px; }
+  .cab-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase; }
+  .feed { flex: 1; overflow-y: auto; padding: 18px 22px; }
+  .feed::-webkit-scrollbar { width: 6px; }
+  .feed::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+  .msg { margin-bottom: 18px; animation: msgIn 0.4s ease both; }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .msg-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); }
+  .msg-meta b { color: var(--ink); font-weight: 600; text-transform: none; letter-spacing: 0; font-family: 'Manrope', sans-serif; font-size: 12px; }
+  .msg-time { margin-left: auto; }
+  .msg-body { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--ink-2); }
+  .msg.from-you .msg-body { background: rgba(212,164,92,0.08); border-color: rgba(212,164,92,0.2); color: var(--ink); }
+  .msg.from-mm .msg-body { border-left: 2px solid var(--blue); }
+  .delegated { margin-top: 8px; padding: 8px 10px; background: var(--panel-2); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+  .delegated .arrow { color: var(--accent); }
+  .composer { border-top: 1px solid var(--line); padding: 16px 18px 18px; background: var(--bg-2); }
+  .composer-shortcuts { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .chip { font-family: 'JetBrains Mono', monospace; font-size: 10px; background: var(--panel); border: 1px solid var(--line); padding: 5px 10px; border-radius: 12px; color: var(--ink-2); cursor: pointer; transition: all 0.15s; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .input-wrap { display: flex; align-items: flex-end; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; transition: border-color 0.2s; }
+  .input-wrap:focus-within { border-color: var(--accent); }
+  .input { flex: 1; background: transparent; border: none; color: var(--ink); font-family: 'Manrope', sans-serif; font-size: 13px; resize: none; outline: none; min-height: 40px; }
+  .input::placeholder { color: var(--ink-3); }
+  .send { background: var(--accent); color: var(--bg); border: none; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.15s; }
+  .send:hover { transform: scale(1.05); }
+  .typing { display: flex; align-items: center; gap: 4px; }
+  .typing span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: typing 1.4s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+  
+  /* ============ LOGIN PAGE ============ */
+  .login-page { display: none; min-height: 100vh; background: var(--bg); align-items: center; justify-content: center; }
+  .login-container { width: 100%; max-width: 420px; padding: 20px; }
+  .login-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 32px; }
+  .login-logo { text-align: center; margin-bottom: 32px; }
+  .login-logo .brand-mark { font-size: 36px; margin-bottom: 8px; }
+  .login-title { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500; text-align: center; margin-bottom: 8px; }
+  .login-subtitle { text-align: center; color: var(--ink-2); margin-bottom: 24px; font-size: 14px; }
+  .login-form input { width: 100%; height: 48px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; color: var(--ink); font-size: 14px; outline: none; margin-bottom: 16px; transition: border-color 0.2s; }
+  .login-form input:focus { border-color: var(--accent); }
+  .login-form input::placeholder { color: var(--ink-3); }
+  .login-btn { width: 100%; height: 48px; background: var(--accent); color: var(--bg); border: none; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+  .login-btn:hover { background: var(--accent-2); }
+  .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .login-sent { text-align: center; }
+  .login-sent-icon { width: 64px; height: 64px; border-radius: 50%; background: rgba(127,176,105,0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 24px; }
+  .login-sent h2 { font-family: 'Fraunces', serif; font-size: 24px; margin-bottom: 8px; }
+  .login-sent p { color: var(--ink-2); font-size: 14px; margin-bottom: 16px; }
+  .login-sent small { color: var(--ink-3); font-size: 12px; }
+  .login-back { display: block; margin-top: 16px; text-align: center; color: var(--ink-3); font-size: 13px; cursor: pointer; }
+  .login-back:hover { color: var(--accent); }
+  
+  /* ============ PROJECT DETAIL ============ */
+  .project-detail { display: none; padding: 32px 40px; }
+  .project-detail-header { margin-bottom: 32px; }
+  .project-detail-title { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 500; margin-bottom: 8px; }
+  .project-detail-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .project-detail-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; }
+  .project-detail-status { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; }
+  .project-detail-desc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+.project-detail-desc-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; margin-bottom: 8px; }
+  .project-detail-progress { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+  .project-detail-progress-header { display: flex; justify-content: space-between; margin-bottom: 12px; }
+  .project-detail-progress-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; }
+  .project-detail-progress-value { font-family: 'Fraunces', serif; font-size: 20px; }
+  .project-detail-progress-bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .project-detail-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 4px; }
+  .project-detail-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .metric-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; text-align: center; }
+  .metric-value { font-family: 'Fraunces', serif; font-size: 28px; margin-bottom: 4px; }
+  .metric-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; }
+  .project-tasks-title { font-family: 'Fraunces', serif; font-size: 22px; margin-bottom: 16px; }
+  .task-item { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .task-item.done { opacity: 0.5; }
+  .task-item.in-progress { border-color: var(--accent); }
+  .task-left { display: flex; align-items: center; gap: 12px; }
+  .task-icon { font-size: 14px; }
+  .task-icon.done { color: var(--green); }
+  .task-icon.in-progress { color: var(--accent); }
+  .task-title { font-size: 14px; }
+  .task-title.done { text-decoration: line-through; color: var(--ink-3); }
+  .task-priority { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; }
+  .task-priority.high { color: var(--red); }
+  .task-priority.medium { color: var(--accent); }
+  .task-priority.low { color: var(--ink-3); }
+  
+  @media (max-width: 1100px) { .app { grid-template-columns: 220px 1fr; } .cabinet { display: none; } }
+  @media (max-width: 720px) { .app { grid-template-columns: 1fr; } .corridor { display: none; } .projects, .team, .project-detail-metrics { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- ====================== LOGIN PAGE ====================== -->
+<div class="login-page" id="login-page">
+  <div class="login-container">
+    <div class="login-logo">
+      <div class="brand-mark">AI<span>·</span>HQ</div>
+      <div class="brand-sub">Headquarters · 01</div>
+    </div>
+    <div class="login-card" id="login-form-container">
+      <h1 class="login-title">Вход для CEO</h1>
+      <p class="login-subtitle">Получите ссылку для входа на email</p>
+      <form class="login-form" onsubmit="return false;">
+        <input type="email" id="login-email" placeholder="jo@example.com" required>
+        <button class="login-btn" onclick="sendMagicLink()">
+          <span>Получить ссылку</span>
+          <span>→</span>
+        </button>
+      </form>
+      <p style="margin-top: 24px; text-align: center; color: var(--ink-3); font-size: 12px;">
+        Только для CEO: Jo и Андрей<br>
+        Magic link авторизация через Supabase
+      </p>
+    </div>
+    <div class="login-sent" id="login-sent-container" style="display:none;">
+      <div class="login-sent-icon">✓</div>
+      <h2>Проверьте почту</h2>
+      <p>Мы отправили ссылку для входа на <b id="sent-email" style="color: var(--ink);"></b></p>
+      <small>Нажмите на ссылку в письме чтобы войти</small>
+      <span class="login-back" onclick="showLoginForm()">Использовать другой email</span>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== MAIN APP ====================== -->
+<div class="app" id="main-app">
+  <!-- ====================== КОРИДОР ====================== -->
+  <aside class="corridor">
+    <div class="brand">
+      <div class="brand-mark">AI<span>·</span>HQ</div>
+      <div class="brand-sub">Headquarters · 01</div>
+    </div>
+    <div class="nav-label">Кабинеты</div>
+    <a href="#" class="door active" data-page="office">
+      <span class="door-icon">◆</span><span>Офис</span><span class="door-badge">live</span>
+    </a>
+    <a href="#" class="door" data-page="projects">
+      <span class="door-icon">◇</span><span>Проекты</span><span class="door-badge">4</span>
+    </a>
+    <a href="#" class="door" data-page="tasks">
+      <span class="door-icon">◇</span><span>Задачи</span><span class="door-badge">7</span>
+    </a>
+    <a href="#" class="door" data-page="team">
+      <span class="door-icon">◇</span><span>Команда</span>
+    </a>
+    <div class="nav-label">Финансы</div>
+    <a href="#" class="door" data-page="budget">
+      <span class="door-icon">◇</span><span>Бюджет</span><span class="door-badge">$487</span>
+    </a>
+    <a href="#" class="door" data-page="settings">
+      <span class="door-icon">◇</span><span>Настройки</span>
+    </a>
+    <div class="ceo-card">
+      <div class="ceo-avatars">
+        <div class="ceo-av">J</div>
+        <div class="ceo-av">A</div>
+      </div>
+      <div class="ceo-info"><b>CEO · 2</b><span>Jo & Андрей</span></div>
+    </div>
+  </aside>
+
+  <!-- ====================== ОФИС ====================== -->
+  <main class="office" id="page-office">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;">
+      <div>
+        <div class="greet-eyebrow"><span class="dot"></span><span id="date-display">Воскресенье · 4 мая</span></div>
+        <h1 class="greet">Доброе утро, <em>команда.</em></h1>
+        <p class="greet-sub">Claude и MiniMax готовы к работе. 3 задачи в очереди, 1 ждёт вашего решения.</p>
+      </div>
+      <div class="clock"><b id="clock-time">22:42</b><br>Warsaw · UTC+2</div>
+    </div>
+    <div class="employee">
+      <div class="emp-avatar">C</div>
+      <div>
+        <div class="emp-name">Claude <em style="color:var(--ink-3);font-style:italic;font-weight:400;font-size:14px;">— Креативный директор</em></div>
+        <div class="emp-role">Стратегия · контент · ТЗ для MiniMax · аналитика</div>
+        <div class="emp-status"><span class="dot" style="background:var(--green);width:6px;height:6px;border-radius:50%;display:inline-block;"></span>На связи · отвечает мгновенно</div>
+      </div>
+      <div class="emp-stats">
+        <div class="stat-block"><div class="num">12</div><div class="lbl">ТЗ выдано</div></div>
+        <div class="stat-block"><div class="num">4</div><div class="lbl">Активно</div></div>
+        <div class="stat-block"><div class="num" style="color:var(--green);">98%</div><div class="lbl">Закрыто</div></div>
+      </div>
+    </div>
+    <div class="section-head">
+      <div class="section-title">Текущие <em>проекты</em></div>
+      <span class="section-link" onclick="showPage('projects')">Открыть все →</span>
+    </div>
+    <div class="projects">
+      <div class="project" onclick="showProjectDetail('crypto-compass')">
+        <div class="project-tag">Crypto</div>
+        <div class="project-name">Крипто-Компас Pro</div>
+        <div class="project-desc">SaaS для крипто-инвесторов. MVP-оболочка готова, идёт замена заглушек на реальные данные CoinGecko.</div>
+        <div class="project-meta">
+          <div class="progress-wrap">
+            <div class="progress-row"><span>Прогресс</span><b>22%</b></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:22%"></div></div>
+          </div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div><div class="agent-pill mm">MM</div></div>
+        </div>
+      </div>
+      <div class="project" onclick="showProjectDetail('tg-network')">
+        <div class="project-tag tg">Telegram</div>
+        <div class="project-name">Сеть TG-каналов</div>
+        <div class="project-desc">5 ниш: крипто, психо-факты, AI-заработок, science-shorts, история. Автопостинг через Make.com.</div>
+        <div class="project-meta">
+          <div class="progress-wrap">
+            <div class="progress-row"><span>Прогресс</span><b>8%</b></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:8%"></div></div>
+          </div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div><div class="agent-pill gpt">GP</div></div>
+        </div>
+      </div>
+      <div class="project" onclick="showProjectDetail('shopify')">
+        <div class="project-tag shop">Shopify</div>
+        <div class="project-name">Магазины DTC</div>
+        <div class="project-desc">Запуск через Shopify + dropshipping. Этап исследования ниш и поставщиков.</div>
+        <div class="project-meta">
+          <div class="progress-wrap">
+            <div class="progress-row"><span>Прогресс</span><b>3%</b></div>
+            <divclass="progress-bar"><div class="progress-fill" style="width:3%"></div></div>
+          </div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div></div>
+        </div>
+      </div>
+      <div class="project" onclick="showProjectDetail('viral')">
+        <div class="project-tag viral">Viral</div>
+        <div class="project-name">Viral-фабрика</div>
+        <div class="project-desc">Reels/Shorts/TikTok с монетизацией и продвижением каналов. Контент-машина на Sora/Runway/ElevenLabs.</div>
+        <div class="project-meta">
+          <div class="progress-wrap">
+            <div class="progress-row"><span>Прогресс</span><b>0%</b></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+          </div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="section-head">
+      <div class="section-title">AI-<em>команда</em></div>
+      <span class="section-link" onclick="showPage('team')">Управление →</span>
+    </div>
+    <div class="team">
+      <div class="team-card">
+        <div class="team-avi cl">CL</div>
+        <div class="team-info"><div class="team-name">Claude Opus 4.7</div><div class="team-role">Стратег / диспетчер</div></div>
+        <div class="team-state busy">занят</div>
+      </div>
+      <div class="team-card">
+        <div class="team-avi mm">MM</div>
+        <div class="team-info"><div class="team-name">MiniMax Agent</div><div class="team-role">Разработчик / DevOps</div></div>
+        <div class="team-state queue">в очереди</div>
+      </div>
+      <div class="team-card">
+        <div class="team-avi gpt">GP</div>
+        <div class="team-info"><div class="team-name">ChatGPT</div><div class="team-role">Контент TG-каналов</div></div>
+        <div class="team-state idle">свободен</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================== PROJECT DETAIL (crypto-compass) ====================== -->
+  <main class="office project-detail" id="page-project-crypto-compass">
+    <div class="project-detail-header">
+      <div class="greet-eyebrow" style="margin-bottom:8px;">Проект</div>
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div>
+          <h1 class="project-detail-title">Крипто-Компас Pro</h1>
+          <div class="project-detail-meta">
+            <span class="project-detail-tag" style="background:var(--accent);color:var(--bg);">Crypto</span>
+            <span class="project-detail-status">● Активен</span>
+          </div>
+        </div>
+        <a href="https://github.com/iamandrey1/kripto-kompas1" target="_blank" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);">GitHub →</a>
+      </div>
+    </div>
+    <div class="project-detail-desc">
+      <div class="project-detail-desc-label">Описание</div>
+      <p>SaaS для крипто-инвесторов. MVP-оболочка готова, идёт замена заглушек на реальные данные CoinGecko.</p>
+    </div>
+    <div class="project-detail-progress">
+      <div class="project-detail-progress-header">
+        <span class="project-detail-progress-label">Прогресс</span>
+        <span class="project-detail-progress-value">22%</span>
+      </div>
+      <div class="project-detail-progress-bar"><div class="project-detail-progress-fill" style="width:22%"></div></div>
+    </div>
+    <div class="project-detail-metrics">
+      <div class="metric-card"><div class="metric-value">1,247</div><div class="metric-label">Пользователей</div></div>
+      <div class="metric-card"><div class="metric-value">342</div><div class="metric-label">DAU</div></div>
+      <div class="metric-card"><div class="metric-value">3.2%</div><div class="metric-label">Конверсия</div></div>
+    </div>
+    <h2 class="project-tasks-title">Задачи</h2>
+    <div>
+      <div class="task-item in-progress"><div class="task-left"><span class="task-icon in-progress">◐</span><span class="task-title">Подключить CoinGecko API</span></div><span class="task-priority high">High</span></div>
+      <div class="task-item done"><div class="task-left"><span class="task-icon done">●</span><span class="task-title done">Дизайн дашборда</span></div><span class="task-priority medium">Medium</span></div>
+      <div class="task-item"><div class="task-left"><span class="task-icon">○</span><span class="task-title">Адаптив для мобильных</span></div><span class="task-priority low">Low</span></div>
+    </div>
+  </main>
+
+  <!-- ====================== PROJECTS PAGE ====================== -->
+  <main class="office" id="page-projects" style="display:none;">
+    <div style="margin-bottom:32px;">
+      <h1 class="greet" style="font-size:32px;">Все <em>проекты</em></h1>
+      <p class="greet-sub">4 проекта · 4 активных</p>
+    </div>
+    <div class="projects" style="grid-template-columns:repeat(3,1fr);">
+      <div class="project" onclick="showProjectDetail('crypto-compass')">
+        <div class="project-tag">Crypto</div>
+        <div class="project-name">Крипто-Компас Pro</div>
+        <div class="project-desc">SaaS для крипто-инвесторов.</div>
+        <div style="margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">Активен</div>
+        <div class="project-meta" style="margin-top:12px;">
+          <div class="progress-wrap"><div class="progress-row"><span>Прогресс</span><b>22%</b></div><div class="progress-bar"><div class="progress-fill" style="width:22%"></div></div></div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div><div class="agent-pill mm">MM</div></div>
+        </div>
+      </div>
+      <div class="project" onclick="showProjectDetail('tg-network')">
+        <div class="project-tag tg">Telegram</div>
+        <div class="project-name">Сеть TG-каналов</div>
+        <div class="project-desc">5 ниш с автопостингом.</div>
+        <div style="margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">Активен</div>
+        <div class="project-meta" style="margin-top:12px;">
+          <div class="progress-wrap"><div class="progress-row"><span>Прогресс</span><b>8%</b></div><div class="progress-bar"><div class="progress-fill" style="width:8%"></div></div></div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div><div class="agent-pill gpt">GP</div></div>
+        </div>
+      </div>
+      <div class="project" onclick="showProjectDetail('shopify')">
+        <div class="project-tag shop">Shopify</div>
+        <div class="project-name">Магазины DTC</div>
+        <div class="project-desc">Shopify + dropshipping.</div>
+        <div style="margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">Активен</div>
+        <div class="project-meta" style="margin-top:12px;">
+          <div class="progress-wrap"><div class="progress-row"><span>Прогресс</span><b>3%</b></div><div class="progress-bar"><div class="progress-fill" style="width:3%"></div></div></div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div></div>
+        </div>
+      </div>
+      <div class="project" onclick="showProjectDetail('viral')">
+        <div class="project-tag viral">Viral</div>
+        <div class="project-name">Viral-фабрика</div>
+        <div class="project-desc">Reels/Shorts/TikTok контент.</div>
+        <div style="margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">Активен</div>
+        <div class="project-meta" style="margin-top:12px;">
+          <div class="progress-wrap"><div class="progress-row"><span>Прогресс</span><b>0%</b></div><div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div></div>
+          <div class="project-agents"><div class="agent-pill cl">CL</div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================== TASKS PAGE ====================== -->
+  <main class="office" id="page-tasks" style="display:none;">
+    <div style="margin-bottom:32px;">
+      <h1 class="greet" style="font-size:32px;"><em style="font-style:italic;color:var(--accent);">Задачи</em></h1>
+      <p class="greet-sub">7 задач · 3 в очереди</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:16px;">К выполнению</div>
+        <div class="task-item" style="display:block;text-align:left;"><div class="task-left" style="margin-bottom:8px;"><span class="task-icon">○</span><span class="task-title">Подключить CoinGecko API</span></div><div style="font-size:12px;color:var(--ink-3);padding-left:26px;">Крипто-Компас</div></div>
+        <div class="task-item" style="display:block;text-align:left;"><div class="task-left" style="margin-bottom:8px;"><span class="task-icon">○</span><span class="task-title">Создать ТЗ для MiniMax</span></div><div style="font-size:12px;color:var(--ink-3);padding-left:26px;">На парсер новостей</div></div>
+      </div>
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:16px;">В работе</div>
+        <div class="task-item in-progress" style="display:block;text-align:left;"><div class="task-left" style="margin-bottom:8px;"><span class="task-icon in-progress">◐</span><span class="task-title">Интеграция OpenAI</span></div><div style="font-size:12px;color:var(--ink-3);padding-left:26px;">Подключение к Sora API</div></div>
+      </div>
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:16px;">Готово</div>
+        <div class="task-item done" style="display:block;text-align:left;"><div class="task-left" style="margin-bottom:8px;"><span class="task-icon done">●</span><span class="task-title done">Настроить Supabase</span></div><div style="font-size:12px;color:var(--ink-3);padding-left:26px;">Auth и база данных</div></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================== TEAM PAGE ====================== -->
+  <main class="office" id="page-team" style="display:none;">
+    <div style="margin-bottom:32px;">
+      <h1 class="greet" style="font-size:32px;">AI-<em>команда</em></h1>
+      <p class="greet-sub">3 агента · управление и мониторинг</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-bottom:48px;">
+      <div style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;display:flex;align-items:center;gap:20px;">
+        <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;">CL</div>
+        <div>
+          <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:500;margin-bottom:4px;">Claude Opus 4.7</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);text-transform:uppercase;margin-bottom:12px;">Стратег / диспетчер</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:6px;background:rgba(212,164,92,0.15);color:var(--accent);display:inline-block;">Занят</div>
+        </div>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;display:flex;align-items:center;gap:20px;">
+        <div style="width:64px;height:64px;border-radius:50%;background:var(--blue);color:var(--ink);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;">MM</div>
+        <div>
+          <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:500;margin-bottom:4px;">MiniMax Agent</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);text-transform:uppercase;margin-bottom:12px;">Разработчик / DevOps</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:6px;background:rgba(107,140,175,0.15);color:var(--blue);display:inline-block;">В очереди</div>
+        </div>
+      </div>
+    </div>
+    <h2 style="font-family:'Fraunces',serif;font-size:22px;font-weight:500;margin-bottom:16px;">Люди <em style="font-style:italic;color:var(--accent);font-weight:400;">в команде</em></h2>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;align-items:center;gap:16px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--accent);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;font-size:18px;">J</div>
+        <div><div style="font-family:'Fraunces',serif;font-size:18px;font-weight:500;">Jo</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);text-transform:uppercase;">CEO · Основатель</div></div>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;align-items:center;gap:16px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--blue);color:var(--ink);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;font-size:18px;">A</div>
+        <div><div style="font-family:'Fraunces',serif;font-size:18px;font-weight:500;">Андрей</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);text-transform:uppercase;">CEO · Основатель</div></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================== BUDGET PAGE ====================== -->
+  <main class="office" id="page-budget" style="display:none;">
+    <div style="margin-bottom:32px;">
+      <h1 class="greet" style="font-size:32px;"><em style="font-style:italic;color:var(--accent);">Бюджет</em></h1>
+      <p class="greet-sub">Расходы на AI и инфраструктуру</p>
+    </div>
+    <div style="background:linear-gradient(135deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:32px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;">Месячный расход</div>
+      <div style="font-family:'Fraunces',serif;font-size:48px;font-weight:500;color:var(--accent);">$487<span style="font-size:18px;color:var(--ink-3);margin-left:8px;">/мес</span></div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;">
+      <div style="padding:16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:12px;"><div style="width:40px;height:40px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">AI</div><div><div style="font-size:14px;font-weight:500;">Anthropic Claude API</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);text-transform:uppercase;">AI модель</div></div></div>
+        <div style="text-align:right;"><div style="font-family:'Fraunces',serif;font-size:20px;color:var(--accent);">$180</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);">+12%</div></div>
+      </div>
+      <div style="padding:16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:12px;"><div style="width:40px;height:40px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">IN</div><div><div style="font-size:14px;font-weight:500;">Vercel Pro</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);text-transform:uppercase;">Infrastructure</div></div></div>
+        <div style="text-align:right;"><div style="font-family:'Fraunces',serif;font-size:20px;">$120</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">+5%</div></div>
+      </div>
+      <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:12px;"><div style="width:40px;height:40px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">DB</div><div><div style="font-size:14px;font-weight:500;">Supabase Pro</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);text-transform:uppercase;">Database</div></div></div>
+        <div style="text-align:right;"><div style="font-family:'Fraunces',serif;font-size:20px;">$75</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);">0%</div></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================== SETTINGS PAGE ====================== -->
+  <main class="office" id="page-settings" style="display:none;">
+    <div style="margin-bottom:32px;">
+      <h1 class="greet" style="font-size:32px;"><em style="font-style:italic;color:var(--accent);">Настройки</em></h1>
+      <p class="greet-sub">API-ключи, интеграции и конфигурация</p>
+    </div>
+    <h2 style="font-family:'Fraunces',serif;font-size:22px;font-weight:500;margin-bottom:16px;">API Ключи</h2>
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;"><div><div style="font-size:14px;font-weight:500;margin-bottom:4px;">Anthropic API Key</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);text-transform:uppercase;">ANTHROPIC_API_KEY</div></div><button style="background:none;border:none;color:var(--ink-3);cursor:pointer;">👁</button></div>
+      <div style="height:40px;background:var(--bg-2);border-radius:8px;padding:0 12px;display:flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink-3);">••••••••••••••••••••••</div>
+    </div>
+    <h2 style="font-family:'Fraunces',serif;font-size:22px;font-weight:500;margin:32px 0 16px;">Интеграции</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px;">
+        <div style="width:40px;height:40px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--ink-2);">TG</div>
+        <div style="flex:1;"><div style="font-size:14px;font-weight:500;">Telegram Bot</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--green);">● Подключено</div></div>
+        <button style="padding:6px 12px;border-radius:8px;background:rgba(217,119,87,0.1);color:var(--red);font-size:11px;cursor:pointer;border:none;">Отключить</button>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px;">
+        <div style="width:40px;height:40px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--ink-2);">GH</div>
+        <div style="flex:1;"><div style="font-size:14px;font-weight:500;">GitHub</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--green);">● Подключено</div></div>
+        <button style="padding:6px 12px;border-radius:8px;background:rgba(217,119,87,0.1);color:var(--red);font-size:11px;cursor:pointer;border:none;">Отключить</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================== КАБИНЕТ CLAUDE ====================== -->
+  <aside class="cabinet">
+    <div class="cab-head">
+      <div class="cab-title">Поручения Claude</div>
+      <div class="cab-sub">Прямой канал · CEO → AI</div>
+    </div>
+    <div class="feed" id="feed">
+      <div class="msg from-claude">
+        <div class="msg-meta"><div class="team-avi cl" style="width:22px;height:22px;font-size:9px;">CL</div><b>Claude</b><span class="msg-time">22:25</span></div>
+        <div class="msg-body">ТЗ №1 для MiniMax готово: подключение CoinGecko API на дашборд Крипто-Компас. Скопируйте из карточки задачи и вставьте в MiniMax Agent.<div class="delegated"><span class="arrow">→</span> Делегировано: MiniMax Agent</div></div>
+      </div>
+      <div class="msg from-mm">
+        <div class="msg-meta"><div class="team-avi mm" style="width:22px;height:22px;font-size:9px;">MM</div><b>MiniMax</b><span class="msg-time">22:31</span></div>
+        <div class="msg-body">Принял задачу. Проверяю репозиторий iamandrey1/kripto-kompas1, начинаю интеграцию CoinGecko Public API. ETA: 8–12 минут.</div>
+      </div>
+      <div class="msg from-claude">
+        <div class="msg-meta"><div class="team-avi cl" style="width:22px;height:22px;font-size:9px;">CL</div><b>Claude</b><span class="msg-time">22:38</span></div>
+        <div class="msg-body">Параллельно подготовил список из 5 ниш для TG-каналов с обоснованием по виральности и LTV. Жду вашего ОК — какие запускаем первыми?</div>
+      </div>
+    </div>
+    <div class="composer">
+      <div class="composer-shortcuts">
+        <div class="chip" onclick="quick('# статус')"># статус</div>
+        <div class="chip" onclick="quick('# тз для MiniMax')"># тз</div>
+        <div class="chip" onclick="quick('# промт')"># промт</div>
+        <div class="chip" onclick="quick('# идея')"># идея</div>
+      </div>
+      <div class="input-wrap">
+        <textarea class="input" id="input" placeholder="Опишите задачу — Claude её распределит и доведёт до результата..." rows="2"></textarea>
+        <button class="send" onclick="send()" title="Отправить">↑</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+  // Clock
+  function tick() {
+    const d = new Date();
+    document.getElementById('clock-time').textContent = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+    const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    document.getElementById('date-display').textContent = `${days[d.getDay()]} · ${d.getDate()} ${months[d.getMonth()]}`;
+  }
+  tick();
+  setInterval(tick, 30000);
+
+  // Navigation
+  document.querySelectorAll('.door').forEach(door => {
+    door.addEventListener('click', (e) => {
+      e.preventDefault();
+      const page = door.dataset.page;
+      if (page) showPage(page);
+    });
+  });
+
+  function showPage(page) {
+    document.querySelectorAll('.office, .project-detail').forEach(el => el.style.display = 'none');
+    const pageEl = document.getElementById('page-' + page);
+    if (pageEl) pageEl.style.display = 'block';
+    
+    document.querySelectorAll('.door').forEach(el => {
+      el.classList.remove('active');
+      el.querySelector('.door-icon').textContent = '◇';
+    });
+    const activeDoor = document.querySelector(`[data-page="${page}"]`);
+    if (activeDoor) {
+      activeDoor.classList.add('active');
+      activeDoor.querySelector('.door-icon').textContent = '◆';
+    }
+  }
+
+  function showProjectDetail(projectId) {
+    document.querySelectorAll('.office, .project-detail').forEach(el => el.style.display = 'none');
+    const pageEl = document.getElementById('page-project-' + projectId);
+    if (pageEl) pageEl.style.display = 'block';
+  }
+
+  // Login
+  function sendMagicLink() {
+    const email = document.getElementById('login-email').value;
+    if (!email || !email.includes('@')) {
+      alert('Введите корректный email');
+      return;
+    }
+    document.getElementById('login-form-container').style.display = 'none';
+    document.getElementById('login-sent-container').style.display = 'block';
+    document.getElementById('sent-email').textContent = email;
+  }
+
+  function showLoginForm() {
+    document.getElementById('login-form-container').style.display = 'block';
+    document.getElementById('login-sent-container').style.display = 'none';
+  }
+
+  // Chat
+  function quick(text) {
+    document.getElementById('input').value = text;
+    document.getElementById('input').focus();
+  }
+
+  function send() {
+    const inp = document.getElementById('input');
+    const text = inp.value.trim();
+    if (!text) return;
+    const feed = document.getElementById('feed');
+    const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    const userMsg = document.createElement('div');
+    userMsg.className = 'msg from-you';
+    userMsg.innerHTML = '<div class="msg-meta"><div class="team-avi" style="width:22px;height:22px;font-size:9px;background:var(--ink-2);color:var(--bg);">JO</div><b>Jo (CEO)</b><span class="msg-time">' + time + '</span></div><div class="msg-body">' + text + '</div>';
+    feed.appendChild(userMsg);
+    inp.value = '';
+
+    const typing = document.createElement('div');
+    typing.id = 'typing-indicator';
+    typing.className = 'msg';
+    typing.innerHTML = '<div class="msg-meta"><div class="team-avi cl" style="width:22px;height:22px;font-size:9px;">CL</div><b>Claude</b></div><div class="msg-body"><div class="typing"><span></span><span></span><span></span></div></div>';
+    feed.appendChild(typing);
+    feed.scrollTop = feed.scrollHeight;
+
+    setTimeout(() => {
+      document.getElementById('typing-indicator').remove();
+      const responses = ['Принял. Анализирую задачу и распределяю между агентами.', 'Интересная идея! Подготовлю план реализации.', 'Добавил в список приоритетов.'];
+      const claudeMsg = document.createElement('div');
+      claudeMsg.className = 'msg from-claude';
+      claudeMsg.innerHTML = '<div class="msg-meta"><div class="team-avi cl" style="width:22px;height:22px;font-size:9px;">CL</div><b>Claude</b><span class="msg-time">' + time + '</span></div><div class="msg-body">' + responses[Math.floor(Math.random() * responses.length)] + '</div>';
+      feed.appendChild(claudeMsg);
+      feed.scrollTop = feed.scrollHeight;
+    }, 1500);
+  }
+
+  document.getElementById('input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  // Progress bars animation
+  document.querySelectorAll('.progress-fill').forEach(el => {
+    const w = el.style.width;
+    el.style.width = '0%';
+    setTimeout(() => { el.style.transition = 'width 1.2s cubic-bezier(0.2, 0.7, 0.2, 1)'; el.style.width = w; }, 200);
+  });
+</script>
+</body>
+</html>
