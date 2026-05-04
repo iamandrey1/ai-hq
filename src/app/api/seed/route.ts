@@ -1,8 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+
+// Seed endpoint - seeds projects into Supabase
+// Uses anon key so RLS policies must allow insert
 
 export async function POST() {
   try {
-    const supabase = await createClient();
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
     
     // Seed projects
     const projects = [
@@ -14,7 +20,6 @@ export async function POST() {
         status: "active",
         progress: 22,
         repo_url: "https://github.com/iamandrey1/kripto-kompas1",
-        agents: ["claude", "minimax"] as const,
       },
       {
         slug: "tg-network",
@@ -23,7 +28,6 @@ export async function POST() {
         description: "5 ниш: крипто, психо-факты, AI-заработок, science-shorts, история. Автопостинг через Make.com.",
         status: "active",
         progress: 8,
-        agents: ["claude", "chatgpt"] as const,
       },
       {
         slug: "shopify-stores",
@@ -32,7 +36,6 @@ export async function POST() {
         description: "Запуск через Shopify + dropshipping. Этап исследования ниш и поставщиков.",
         status: "active",
         progress: 3,
-        agents: ["claude"] as const,
       },
       {
         slug: "viral-factory",
@@ -41,19 +44,36 @@ export async function POST() {
         description: "Reels/Shorts/TikTok с монетизацией и продвижением каналов. Контент-машина на Sora/Runway/ElevenLabs.",
         status: "active",
         progress: 0,
-        agents: ["claude"] as const,
       },
     ];
 
+    let seeded = 0;
+    let errors: string[] = [];
+
     for (const project of projects) {
-      await supabase.from("projects").upsert(project, { 
-        onConflict: "slug",
-        ignoreDuplicates: true 
-      });
+      // Try insert first, if exists skip
+      const { error } = await supabase
+        .from("projects")
+        .insert(project);
+      
+      if (error) {
+        if (error.code === "23505") {
+          // Duplicate key - skip
+          seeded++;
+        } else {
+          errors.push(`${project.name}: ${error.message}`);
+        }
+      } else {
+        seeded++;
+      }
     }
 
-    return Response.json({ success: true, seeded: projects.length });
+    return Response.json({ success: true, seeded, errors: errors.length > 0 ? errors : undefined });
   } catch (error: any) {
     return Response.json({ error: error?.message }, { status: 500 });
   }
+}
+
+export async function GET() {
+  return POST();
 }
