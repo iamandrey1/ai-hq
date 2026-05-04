@@ -44,6 +44,7 @@ export function Office() {
   const handleSend = () => {
     if (!inputValue.trim()) return;
     addMessage({
+      id: crypto.randomUUID(),
       sender: "ceo",
       senderName: "Jo (CEO)",
       content: inputValue.trim(),
