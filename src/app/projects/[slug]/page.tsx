@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useCallback } from "react";
 import Link from "next/link";
 import { useProjects } from "@/hooks/useProjects";
 import { useProjectPhases, Phase } from "@/hooks/useProjectPhases";
@@ -7,15 +7,18 @@ import { useProjectChecklist, ChecklistItem } from "@/hooks/useProjectChecklist"
 import { useProjectKpis, Kpi } from "@/hooks/useProjectKpis";
 import { useProjectForecast } from "@/hooks/useProjectForecast";
 import { useProjectRisks, Risk } from "@/hooks/useProjectRisks";
+import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFileLinks";
+import { useCustomTables, useCustomTableData, CustomColumn } from "@/hooks/useCustomTable";
 import { Corridor } from "@/components/Corridor";
 import { toast } from "sonner";
 import {
   ArrowLeft, ExternalLink, ChevronDown, ChevronRight, Check,
   Plus, Pencil, Trash2, TrendingUp, AlertTriangle,
+  Link as LinkIcon, Search, X, FileText, Github, Figma, Globe, Table, HardDrive, Database,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
-type Tab = "overview" | "plan" | "kpi" | "risks";
+type Tab = "overview" | "plan" | "kpi" | "risks" | "files" | "data";
 
 const categoryBadge: Record<string, string> = {
   crypto:   "bg-amber-400/10 text-amber-400",
@@ -120,6 +123,8 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
     { id: "plan",     label: "План" },
     { id: "kpi",      label: "KPI" },
     { id: "risks",    label: "Риски" },
+    { id: "files",    label: "Файлы" },
+    { id: "data",     label: "Данные" },
   ];
 
   if (!project && projects.length > 0) {
@@ -529,6 +534,16 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
             </div>
           )}
 
+          {/* ── FILES ── */}
+          {tab === "files" && project && (
+            <FilesTab projectId={project.id} />
+          )}
+
+          {/* ── DATA ── */}
+          {tab === "data" && project && (
+            <DataTab projectId={project.id} />
+          )}
+
         </div>
       </main>
     </div>
@@ -549,5 +564,479 @@ function StatCard({ label, value, accent, danger, small }: {
         {value}
       </div>
     </div>
+  );
+}
+
+// ── FilesTab ──────────────────────────────────────────────────────────────────
+
+function FileIcon({ type, size = 16 }: { type: string; size?: number }) {
+  switch (type) {
+    case "gdoc":    return <FileText size={size} />;
+    case "gsheet":  return <Table size={size} />;
+    case "gslides": return <Database size={size} />;
+    case "gdrive":  return <HardDrive size={size} />;
+    case "notion":  return <FileText size={size} />;
+    case "figma":   return <Figma size={size} />;
+    case "github":  return <Github size={size} />;
+    case "vercel":  return <Globe size={size} />;
+    default:        return <LinkIcon size={size} />;
+  }
+}
+
+const FILE_ICON_COLORS: Record<string, string> = {
+  gdoc:    "text-blue-400",
+  gsheet:  "text-green",
+  gslides: "text-amber-400",
+  gdrive:  "text-blue-300",
+  notion:  "text-ink-2",
+  figma:   "text-purple-400",
+  github:  "text-ink-2",
+  vercel:  "text-ink-2",
+  link:    "text-ink-3",
+};
+
+interface FilesFormState { title: string; url: string; tags: string; }
+const emptyFilesForm: FilesFormState = { title: "", url: "", tags: "" };
+
+function FilesTab({ projectId }: { projectId: string }) {
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState<"add" | "edit" | null>(null);
+  const [editTarget, setEditTarget] = useState<FileLink | null>(null);
+  const [form, setForm] = useState<FilesFormState>(emptyFilesForm);
+  const { files, loading, addFile, updateFile, deleteFile } = useFileLinks(projectId);
+
+  const filtered = files.filter((f) =>
+    !search ||
+    f.title.toLowerCase().includes(search.toLowerCase()) ||
+    f.url.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const parseTags = (s: string) => s.split(",").map((t) => t.trim()).filter(Boolean);
+
+  const openAdd = () => { setForm(emptyFilesForm); setEditTarget(null); setModal("add"); };
+  const openEdit = (f: FileLink) => {
+    setEditTarget(f);
+    setForm({ title: f.title, url: f.url, tags: (f.tags || []).join(", ") });
+    setModal("edit");
+  };
+  const closeModal = () => { setModal(null); setEditTarget(null); };
+
+  const handleSubmit = async () => {
+    if (!form.title.trim() || !form.url.trim()) return;
+    if (modal === "add") {
+      const ok = await addFile({ title: form.title.trim(), url: form.url.trim(), project_id: projectId, tags: parseTags(form.tags) });
+      if (ok) { toast.success("Файл добавлен"); closeModal(); } else toast.error("Ошибка");
+    } else if (modal === "edit" && editTarget) {
+      const ok = await updateFile(editTarget.id, { title: form.title.trim(), url: form.url.trim(), tags: parseTags(form.tags) });
+      if (ok) { toast.success("Обновлено"); closeModal(); } else toast.error("Ошибка");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    const ok = await deleteFile(id);
+    if (ok) toast.success("Удалено"); else toast.error("Ошибка");
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-5">
+        <div className="relative flex-1">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск..."
+            className="w-full bg-panel border border-line rounded pl-8 pr-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50 placeholder:text-ink-3"
+          />
+        </div>
+        <button
+          onClick={openAdd}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors"
+        >
+          <Plus size={13} />Добавить
+        </button>
+      </div>
+
+      {loading && <div className="text-ink-3 text-sm text-center py-8">Загрузка...</div>}
+      {!loading && filtered.length === 0 && (
+        <div className="text-ink-3 text-sm text-center py-8">
+          {files.length === 0 ? "Нет файлов. Добавьте первый!" : "Ничего не найдено"}
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3">
+        {filtered.map((f) => {
+          const iconType = f.icon_type || "link";
+          return (
+            <div key={f.id} className="bg-panel border border-line rounded-lg p-4 group hover:border-line-2 transition-colors">
+              <div className="flex items-start gap-3 mb-3">
+                <div className={`mt-0.5 shrink-0 ${FILE_ICON_COLORS[iconType] || "text-ink-3"}`}>
+                  <FileIcon type={iconType} size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium text-ink truncate">{f.title}</div>
+                  <div className="text-[11px] text-ink-3">{ICON_LABELS[iconType] || "Ссылка"}</div>
+                </div>
+              </div>
+              {(f.tags?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {f.tags!.map((tag) => (
+                    <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-panel-2 text-ink-3 rounded">{tag}</span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-2 border-t border-line">
+                <a
+                  href={f.url} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-panel-2 border border-line rounded text-[12px] text-ink-2 hover:text-ink transition-colors"
+                >
+                  <ExternalLink size={11} />Открыть
+                </a>
+                <button onClick={() => openEdit(f)} className="p-1.5 bg-panel-2 border border-line rounded text-ink-3 hover:text-ink transition-colors">
+                  <Pencil size={12} />
+                </button>
+                <button onClick={() => handleDelete(f.id)} className="p-1.5 bg-panel-2 border border-line rounded text-ink-3 hover:text-red transition-colors">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {modal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-panel border border-line rounded-lg p-6 w-[400px]">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[15px] font-semibold text-ink">{modal === "edit" ? "Редактировать" : "Добавить ссылку"}</h2>
+              <button onClick={closeModal} className="text-ink-3 hover:text-ink"><X size={16} /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[12px] text-ink-3 mb-1 block">Название</label>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="Например: Дизайн в Figma"
+                  className="w-full bg-bg border border-line rounded px-3 py-2 text-sm text-ink outline-none focus:border-accent/50"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-[12px] text-ink-3 mb-1 block">URL</label>
+                <input
+                  value={form.url}
+                  onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+                  placeholder="https://..."
+                  className="w-full bg-bg border border-line rounded px-3 py-2 text-sm text-ink outline-none focus:border-accent/50"
+                />
+                {form.url && (
+                  <div className="mt-1 text-[11px] text-ink-3">
+                    Тип: <span className="text-ink-2">{ICON_LABELS[getIconType(form.url)]}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="text-[12px] text-ink-3 mb-1 block">Теги (через запятую)</label>
+                <input
+                  value={form.tags}
+                  onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
+                  placeholder="design, api, docs"
+                  className="w-full bg-bg border border-line rounded px-3 py-2 text-sm text-ink outline-none focus:border-accent/50"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={closeModal} className="flex-1 px-3 py-2 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">Отмена</button>
+              <button onClick={handleSubmit} className="flex-1 px-3 py-2 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">
+                {modal === "edit" ? "Сохранить" : "Добавить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── DataTab ───────────────────────────────────────────────────────────────────
+
+const COL_TYPE_LABELS: Record<string, string> = {
+  text: "Текст", number: "Число", date: "Дата",
+  checkbox: "Флаг", select: "Выбор", url: "URL",
+};
+
+function DataTab({ projectId }: { projectId: string }) {
+  const { tables, loading: tablesLoading, createTable, deleteTable } = useCustomTables(projectId);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [newTableTitle, setNewTableTitle] = useState("");
+  const [addingTable, setAddingTable] = useState(false);
+  const [addingCol, setAddingCol] = useState(false);
+  const [newColName, setNewColName] = useState("");
+  const [newColType, setNewColType] = useState<CustomColumn["type"]>("text");
+
+  const selectedTable = tables.find((t) => t.id === selectedTableId) || tables[0] || null;
+  const activeId = selectedTable?.id ?? null;
+
+  const { columns, rows, loading: dataLoading, addColumn, deleteColumn, addRow, updateCell, deleteRow } =
+    useCustomTableData(activeId);
+
+  useEffect(() => {
+    if (tables.length > 0 && !selectedTableId) setSelectedTableId(tables[0].id);
+  }, [tables, selectedTableId]);
+
+  const handleCreateTable = async () => {
+    if (!newTableTitle.trim()) return;
+    const t = await createTable(newTableTitle.trim());
+    if (t) { setSelectedTableId(t.id); setNewTableTitle(""); setAddingTable(false); }
+    else toast.error("Ошибка при создании");
+  };
+
+  const handleDeleteTable = async (id: string) => {
+    const ok = await deleteTable(id);
+    if (ok) {
+      if (selectedTableId === id) setSelectedTableId(null);
+      toast.success("Таблица удалена");
+    }
+  };
+
+  const handleAddColumn = async () => {
+    if (!newColName.trim()) return;
+    const col = await addColumn(newColName.trim(), newColType);
+    if (col) { setNewColName(""); setNewColType("text"); setAddingCol(false); }
+    else toast.error("Ошибка");
+  };
+
+  const handleCellChange = useCallback(async (rowId: string, colId: string, value: unknown) => {
+    await updateCell(rowId, colId, value);
+  }, [updateCell]);
+
+  if (tablesLoading) return <div className="text-ink-3 text-sm text-center py-8">Загрузка...</div>;
+
+  return (
+    <div className="flex gap-4 min-h-[400px]">
+      {/* Table list */}
+      <div className="w-44 shrink-0">
+        <div className="space-y-px mb-3">
+          {tables.map((t) => (
+            <div
+              key={t.id}
+              className={`group flex items-center gap-1 px-2 py-2 rounded cursor-pointer text-[13px] transition-colors ${
+                activeId === t.id ? "bg-accent/10 text-accent" : "text-ink-2 hover:bg-panel hover:text-ink"
+              }`}
+              onClick={() => setSelectedTableId(t.id)}
+            >
+              <span className="flex-1 truncate">{t.title}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteTable(t.id); }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 text-ink-3 hover:text-red transition-colors"
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+        {addingTable ? (
+          <div className="space-y-1">
+            <input
+              value={newTableTitle}
+              onChange={(e) => setNewTableTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreateTable(); if (e.key === "Escape") { setAddingTable(false); setNewTableTitle(""); } }}
+              placeholder="Название..."
+              className="w-full bg-panel border border-line rounded px-2 py-1 text-[12px] text-ink outline-none focus:border-accent/50"
+              autoFocus
+            />
+            <div className="flex gap-1">
+              <button onClick={handleCreateTable} className="flex-1 px-1.5 py-1 bg-accent text-white rounded text-[11px] hover:bg-accent-2">Создать</button>
+              <button onClick={() => { setAddingTable(false); setNewTableTitle(""); }} className="px-1.5 py-1 text-ink-3 hover:text-ink text-[11px]">✕</button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setAddingTable(true)}
+            className="flex items-center gap-1 text-[12px] text-ink-3 hover:text-accent transition-colors"
+          >
+            <Plus size={12} />Новая таблица
+          </button>
+        )}
+      </div>
+
+      {/* Table editor */}
+      <div className="flex-1 overflow-auto">
+        {!selectedTable ? (
+          <div className="text-ink-3 text-sm text-center py-12">Создайте таблицу</div>
+        ) : dataLoading ? (
+          <div className="text-ink-3 text-sm text-center py-8">Загрузка...</div>
+        ) : (
+          <div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-line">
+                    {columns.map((col) => (
+                      <th key={col.id} className="group text-left px-3 py-2 text-ink-3 font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span>{col.name}</span>
+                          <span className="text-[10px] text-ink-3/60 font-mono">{COL_TYPE_LABELS[col.type]}</span>
+                          <button
+                            onClick={() => deleteColumn(col.id).then(() => toast.success("Колонка удалена"))}
+                            className="opacity-0 group-hover:opacity-100 text-ink-3 hover:text-red transition-colors"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="px-3 py-2">
+                      {addingCol ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            value={newColName}
+                            onChange={(e) => setNewColName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleAddColumn(); if (e.key === "Escape") { setAddingCol(false); setNewColName(""); } }}
+                            placeholder="Колонка"
+                            className="w-20 bg-bg border border-line rounded px-1.5 py-0.5 text-[11px] text-ink outline-none focus:border-accent/50"
+                            autoFocus
+                          />
+                          <select
+                            value={newColType}
+                            onChange={(e) => setNewColType(e.target.value as CustomColumn["type"])}
+                            className="bg-bg border border-line rounded px-1 py-0.5 text-[11px] text-ink outline-none"
+                          >
+                            {Object.entries(COL_TYPE_LABELS).map(([v, l]) => (
+                              <option key={v} value={v}>{l}</option>
+                            ))}
+                          </select>
+                          <button onClick={handleAddColumn} className="px-1.5 py-0.5 bg-accent text-white rounded text-[10px]">+</button>
+                          <button onClick={() => { setAddingCol(false); setNewColName(""); }} className="text-ink-3 hover:text-ink"><X size={10} /></button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddingCol(true)}
+                          className="flex items-center gap-1 text-ink-3 hover:text-accent transition-colors"
+                        >
+                          <Plus size={12} /><span className="text-[11px]">Колонка</span>
+                        </button>
+                      )}
+                    </th>
+                    <th className="w-6" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="group border-b border-line/50 hover:bg-panel/50 transition-colors">
+                      {columns.map((col) => (
+                        <td key={col.id} className="px-2 py-1">
+                          <TableCell
+                            col={col}
+                            value={row.data[col.id]}
+                            onChange={(v) => handleCellChange(row.id, col.id, v)}
+                          />
+                        </td>
+                      ))}
+                      <td className="px-2 py-1" />
+                      <td className="px-1 py-1">
+                        <button
+                          onClick={() => deleteRow(row.id).then(() => toast.success("Строка удалена"))}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-ink-3 hover:text-red transition-colors"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button
+              onClick={() => addRow().then((r) => { if (!r) toast.error("Ошибка"); })}
+              className="mt-3 flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-accent transition-colors"
+            >
+              <Plus size={12} />Добавить строку
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TableCell({ col, value, onChange }: {
+  col: CustomColumn;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const baseInput = "w-full bg-transparent border border-transparent hover:border-line focus:border-accent/50 rounded px-1.5 py-0.5 text-[12px] text-ink outline-none transition-colors";
+
+  if (col.type === "checkbox") {
+    return (
+      <input
+        type="checkbox"
+        checked={Boolean(value)}
+        onChange={(e) => onChange(e.target.checked)}
+        className="w-4 h-4 accent-accent"
+      />
+    );
+  }
+  if (col.type === "date") {
+    return (
+      <input
+        type="date"
+        value={String(value || "")}
+        onChange={(e) => onChange(e.target.value)}
+        className={baseInput}
+      />
+    );
+  }
+  if (col.type === "number") {
+    return (
+      <input
+        type="number"
+        value={String(value ?? "")}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        onBlur={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        className={`${baseInput} w-24`}
+      />
+    );
+  }
+  if (col.type === "select" && col.options?.choices) {
+    return (
+      <select
+        value={String(value || "")}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${baseInput} cursor-pointer`}
+      >
+        <option value="">—</option>
+        {col.options.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+    );
+  }
+  if (col.type === "url") {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          type="url"
+          value={String(value || "")}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${baseInput} flex-1`}
+          placeholder="https://..."
+        />
+        {!!value && (
+          <a href={String(value)} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-2">
+            <ExternalLink size={11} />
+          </a>
+        )}
+      </div>
+    );
+  }
+  return (
+    <input
+      type="text"
+      value={String(value || "")}
+      onChange={(e) => onChange(e.target.value)}
+      className={baseInput}
+      placeholder="—"
+    />
   );
 }

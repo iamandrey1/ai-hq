@@ -10,15 +10,18 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Sun, Moon, LayoutDashboard, FolderKanban, GitBranch,
   CheckSquare, Users, DollarSign, Settings, Pencil, Check, X,
+  Link as LinkIcon, Activity,
 } from "lucide-react";
 import type { Profile } from "@/types/index";
 
 const navItems = [
-  { href: "/office",    label: "Офис",     icon: LayoutDashboard },
-  { href: "/projects",  label: "Проекты",  icon: FolderKanban },
-  { href: "/roadmap",   label: "Roadmap",  icon: GitBranch },
-  { href: "/tasks",     label: "Задачи",   icon: CheckSquare },
-  { href: "/team",      label: "Команда",  icon: Users },
+  { href: "/office",    label: "Офис",       icon: LayoutDashboard },
+  { href: "/projects",  label: "Проекты",    icon: FolderKanban },
+  { href: "/roadmap",   label: "Roadmap",    icon: GitBranch },
+  { href: "/tasks",     label: "Задачи",     icon: CheckSquare },
+  { href: "/team",      label: "Команда",    icon: Users },
+  { href: "/files",     label: "Файлы",      icon: LinkIcon },
+  { href: "/activity",  label: "Активность", icon: Activity },
 ];
 
 const financeItems = [
