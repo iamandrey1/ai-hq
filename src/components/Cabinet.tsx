@@ -31,13 +31,12 @@ export function Cabinet() {
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const { profile } = useProfile();
   const { sendMessage: saveMessageToDB } = useChatMessages();
 
   useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
   const senderName = profile?.full_name
@@ -123,7 +122,7 @@ export function Cabinet() {
         </div>
       </div>
 
-      <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={feedRef} className="chat-feed flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -159,6 +158,7 @@ export function Cabinet() {
             </span>
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
 
       <div className="border-t border-line p-4 bg-bg-2">

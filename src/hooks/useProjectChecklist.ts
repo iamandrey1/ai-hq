@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/hooks/useActivityLog";
 
 export interface ChecklistItem {
   id: string;
@@ -91,11 +92,19 @@ export function useProjectChecklist(projectId: string | null) {
 
     if (error) { setError(error.message); return false; }
 
-    // Sync project progress
+    // Sync project progress + log activity
     setChecklist(prev => {
       const updated = prev.map(c => c.id === item.id ? { ...c, is_done: isDone } : c);
       if (projectId) syncProjectProgress(projectId, updated);
       return updated;
+    });
+
+    logActivity({
+      action_type: isDone ? "checklist_done" : "checklist_undone",
+      description: `${isDone ? "Выполнил" : "Отменил"} пункт: ${item.title}`,
+      project_id: projectId || undefined,
+      entity_type: "checklist_item",
+      entity_id: item.id,
     });
 
     return true;

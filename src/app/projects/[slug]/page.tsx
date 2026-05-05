@@ -56,9 +56,15 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const [updatingKpi, setUpdatingKpi] = useState<Kpi | null>(null);
   const [newKpiValue, setNewKpiValue] = useState("");
 
+  const [planEditMode, setPlanEditMode] = useState(false);
+  const [addingPhase, setAddingPhase] = useState(false);
+  const [newPhaseTitle, setNewPhaseTitle] = useState("");
+  const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
+  const [editingPhaseTitle, setEditingPhaseTitle] = useState("");
+
   const project = projects.find(p => p.slug === slug);
 
-  const { phases } = useProjectPhases(project?.id ?? null);
+  const { phases, addPhase, updatePhase, deletePhase } = useProjectPhases(project?.id ?? null);
   const { checklist, toggleItem, addItem, updateItem, deleteItem, progress, getByPhase } = useProjectChecklist(project?.id ?? null);
   const { kpis, updateValue, getProgress, getProgressColor } = useProjectKpis(project?.id ?? null);
   const { chartData, totalProfit } = useProjectForecast(project?.id ?? null);
@@ -103,6 +109,24 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const handleDeleteItem = async (id: string) => {
     const ok = await deleteItem(id);
     if (ok) toast.success("Удалено");
+  };
+
+  const handleAddPhase = async () => {
+    if (!newPhaseTitle.trim()) return;
+    const p = await addPhase(newPhaseTitle.trim());
+    if (p) { toast.success("Фаза добавлена"); setNewPhaseTitle(""); setAddingPhase(false); }
+    else toast.error("Ошибка при добавлении");
+  };
+
+  const handleSavePhase = async () => {
+    if (!editingPhaseId || !editingPhaseTitle.trim()) return;
+    const ok = await updatePhase(editingPhaseId, { title: editingPhaseTitle.trim() });
+    if (ok) { setEditingPhaseId(null); setEditingPhaseTitle(""); }
+  };
+
+  const handleDeletePhase = async (id: string) => {
+    const ok = await deletePhase(id);
+    if (ok) toast.success("Фаза удалена"); else toast.error("Ошибка");
   };
 
   const handleUpdateKpi = async () => {
@@ -261,6 +285,24 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
           {/* ── PLAN ── */}
           {tab === "plan" && (
             <div className="space-y-6">
+              {/* Edit mode toggle */}
+              <div className="flex items-center justify-between">
+                <div className="text-[12px] text-ink-3">
+                  {phases.length > 0 ? `${phases.length} фаз · ${progress.done}/${progress.total} задач` : ""}
+                </div>
+                <button
+                  onClick={() => setPlanEditMode(!planEditMode)}
+                  className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded border transition-colors ${
+                    planEditMode
+                      ? "bg-accent/10 border-accent/40 text-accent"
+                      : "border-line text-ink-3 hover:text-ink hover:border-line-2"
+                  }`}
+                >
+                  <Pencil size={12} />
+                  {planEditMode ? "Готово" : "Редактировать план"}
+                </button>
+              </div>
+
               {/* Phase stepper */}
               {phases.length > 0 && (
                 <div className="bg-panel border border-line rounded-lg p-5">
@@ -295,7 +337,12 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
               {/* Phases + checklists */}
               {phases.length === 0 ? (
-                <div className="text-center py-12 text-ink-3 text-sm">Фазы не найдены</div>
+                <div className="text-center py-12 text-ink-3 text-sm">
+                  Фазы не найдены.{" "}
+                  {planEditMode && (
+                    <button onClick={() => setAddingPhase(true)} className="text-accent hover:text-accent-2">Добавить первую</button>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-2">
                   {phases.map(phase => {
@@ -305,6 +352,19 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
                     return (
                       <div key={phase.id} className="bg-panel border border-line rounded-lg overflow-hidden">
+                          {editingPhaseId === phase.id ? (
+                          <div className="px-4 py-2 flex items-center gap-2">
+                            <input
+                              value={editingPhaseTitle}
+                              onChange={(e) => setEditingPhaseTitle(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") handleSavePhase(); if (e.key === "Escape") setEditingPhaseId(null); }}
+                              className="flex-1 bg-bg border border-accent/40 rounded px-2 py-1 text-sm text-ink outline-none"
+                              autoFocus
+                            />
+                            <button onClick={handleSavePhase} className="text-[11px] px-2 py-1 bg-accent text-white rounded hover:bg-accent-2">Сохр.</button>
+                            <button onClick={() => setEditingPhaseId(null)} className="text-[11px] text-ink-3 hover:text-ink">Отмена</button>
+                          </div>
+                        ) : (
                         <button
                           onClick={() => togglePhase(phase.id)}
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-panel-2 transition-colors text-left"
@@ -319,7 +379,20 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                           {prog.done === prog.total && prog.total > 0 && (
                             <Check size={13} className="text-green" />
                           )}
+                          {planEditMode && (
+                            <>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingPhaseId(phase.id); setEditingPhaseTitle(phase.title); }}
+                                className="p-1 text-ink-3 hover:text-ink"
+                              ><Pencil size={11} /></button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeletePhase(phase.id); }}
+                                className="p-1 text-ink-3 hover:text-red"
+                              ><Trash2 size={11} /></button>
+                            </>
+                          )}
                         </button>
+                        )}
 
                         {isExpanded && (
                           <div className="border-t border-line px-4 pb-4 pt-3">
@@ -398,6 +471,33 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Add phase */}
+              {planEditMode && (
+                <div className="mt-2">
+                  {addingPhase ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={newPhaseTitle}
+                        onChange={(e) => setNewPhaseTitle(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleAddPhase(); if (e.key === "Escape") { setAddingPhase(false); setNewPhaseTitle(""); } }}
+                        placeholder="Название фазы..."
+                        className="flex-1 bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                        autoFocus
+                      />
+                      <button onClick={handleAddPhase} className="px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2">Добавить</button>
+                      <button onClick={() => { setAddingPhase(false); setNewPhaseTitle(""); }} className="px-3 py-1.5 text-ink-3 hover:text-ink text-sm">Отмена</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingPhase(true)}
+                      className="flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors px-4 py-2 border border-dashed border-line rounded-lg w-full"
+                    >
+                      <Plus size={13} />+ Добавить фазу
+                    </button>
+                  )}
                 </div>
               )}
             </div>

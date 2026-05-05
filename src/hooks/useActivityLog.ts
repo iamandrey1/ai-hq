@@ -65,7 +65,24 @@ export function useActivityLog(options?: { projectId?: string; limit?: number })
     const supabase = createClient();
     const channel = supabase
       .channel("activity-log-rt")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, () => load(0))
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, async (payload) => {
+        // Fetch the new entry with joins so we have profile/project names
+        const { data } = await supabase
+          .from("activity_log")
+          .select("*, profiles(full_name, initials), projects(name, slug)")
+          .eq("id", payload.new.id)
+          .single();
+        if (data) {
+          const entry = {
+            ...data,
+            profile: (data.profiles as { full_name: string; initials: string }) || undefined,
+            project: (data.projects as { name: string; slug: string }) || undefined,
+          } as ActivityEntry;
+          if (!options?.projectId || entry.project_id === options.projectId) {
+            setEntries((prev) => [entry, ...prev].slice(0, pageSize * (page + 1)));
+          }
+        }
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };

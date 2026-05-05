@@ -82,7 +82,7 @@ export default function LoginPage() {
     }
   };
 
-  if (sent && mode === "magic") {
+  if (sent) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="relative z-10 w-full max-w-md">
@@ -101,10 +101,10 @@ export default function LoginPage() {
             </div>
             <h1 className="font-display text-2xl font-medium mb-2">Проверьте почту</h1>
             <p className="text-ink-2 text-sm mb-6">
-              Мы отправили ссылку для входа на <b className="text-ink">{email}</b>
+              Мы отправили письмо на <b className="text-ink">{email}</b>
             </p>
             <p className="text-ink-3 text-xs">
-              Нажмите на ссылку в письме чтобы войти.
+              Нажмите на ссылку в письме чтобы войти или сбросить пароль.
             </p>
           </div>
 
@@ -174,21 +174,38 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="vovapoland13@gmail.com"
+                placeholder="name@example.com"
                 className="w-full h-12 bg-bg-2 border border-line rounded-xl px-4 text-ink placeholder:text-ink-3 outline-none focus:border-accent transition-colors"
               />
             </div>
 
             {mode === "password" && (
               <div className="mb-4">
-                <label className="block font-mono text-[10px] text-ink-3 uppercase tracking-[0.1em] mb-2">
-                  Пароль
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block font-mono text-[10px] text-ink-3 uppercase tracking-[0.1em]">
+                    Пароль
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!email || !email.includes("@")) { setError("Введите email выше"); return; }
+                      setLoading(true);
+                      await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: "https://ai-hq-wine.vercel.app/update-password",
+                      });
+                      setLoading(false);
+                      setSent(true);
+                    }}
+                    className="text-[11px] text-ink-3 hover:text-accent transition-colors"
+                  >
+                    Забыли пароль?
+                  </button>
+                </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="TempPass123!"
+                  placeholder="Введите пароль"
                   className="w-full h-12 bg-bg-2 border border-line rounded-xl px-4 text-ink placeholder:text-ink-3 outline-none focus:border-accent transition-colors"
                 />
               </div>

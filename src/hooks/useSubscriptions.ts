@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/hooks/useActivityLog";
 
 export interface Subscription {
   id: string;
@@ -59,24 +60,24 @@ export function useSubscriptions() {
 
   const createSub = useCallback(async (sub: Omit<Subscription, "id" | "created_at">) => {
     const { error } = await supabase.from("subscriptions").insert(sub);
-    if (error) console.error("Failed to create subscription:", error);
-    return !error;
+    if (error) { console.error("Failed to create subscription:", error); return false; }
+    logActivity({ action_type: "subscription_added", description: `Добавил подписку: ${sub.service}`, entity_type: "subscription" });
+    return true;
   }, []);
 
   const updateSub = useCallback(async (id: string, updates: Partial<Subscription>) => {
-    const { error } = await supabase
-      .from("subscriptions")
-      .update(updates)
-      .eq("id", id);
+    const { error } = await supabase.from("subscriptions").update(updates).eq("id", id);
     if (error) console.error("Failed to update subscription:", error);
     return !error;
   }, []);
 
   const deleteSub = useCallback(async (id: string) => {
+    const sub = subs.find((s) => s.id === id);
     const { error } = await supabase.from("subscriptions").delete().eq("id", id);
-    if (error) console.error("Failed to delete subscription:", error);
-    return !error;
-  }, []);
+    if (error) { console.error("Failed to delete subscription:", error); return false; }
+    if (sub) logActivity({ action_type: "subscription_deleted", description: `Удалил подписку: ${sub.service}`, entity_type: "subscription" });
+    return true;
+  }, [subs]);
 
   return { subs, loading, total, byCategory, createSub, updateSub, deleteSub };
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { useProfile } from "@/hooks/useProfile";
+import { useOnlinePresence } from "@/hooks/useOnlinePresence";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
@@ -33,6 +34,7 @@ export function Corridor() {
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useStore();
   const { profile } = useProfile();
+  const { onlineIds } = useOnlinePresence();
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -222,11 +224,17 @@ export function Corridor() {
 
               return (
                 <div key={p.id} className="flex items-center gap-2 group/ceo">
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0",
-                    avatarColor(i)
-                  )}>
-                    {p.full_name?.charAt(0)?.toUpperCase() || "?"}
+                  <div className="relative shrink-0">
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold",
+                      avatarColor(i)
+                    )}>
+                      {p.full_name?.charAt(0)?.toUpperCase() || "?"}
+                    </div>
+                    <span className={cn(
+                      "absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-panel",
+                      onlineIds.includes(p.id) ? "bg-green" : "bg-ink-3"
+                    )} />
                   </div>
 
                   {isEditing ? (

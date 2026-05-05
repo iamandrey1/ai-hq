@@ -81,6 +81,17 @@ html.light {
   border-radius: 999px;
 }
 
+/* Chat feed — 6px purple scrollbar */
+.chat-feed::-webkit-scrollbar { width: 6px; }
+.chat-feed::-webkit-scrollbar-track { background: transparent; }
+.chat-feed::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-accent) / 0.35);
+  border-radius: 999px;
+}
+.chat-feed::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-accent) / 0.6);
+}
+
 /* ─── Animations ─── */
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(4px); }
