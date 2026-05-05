@@ -8,26 +8,40 @@ export function useOnlinePresence() {
   useEffect(() => {
     const supabase = createClient();
 
-    const room = supabase.channel("ai-hq-presence", {
-      config: { presence: { key: "users" } },
-    });
+    // No shared key — each socket connection is its own entry in presenceState
+    const room = supabase.channel("ai-hq-presence");
 
     room
       .on("presence", { event: "sync" }, () => {
         const state = room.presenceState<{ user_id: string }>();
-        const ids = Object.values(state).flat().map((p) => p.user_id);
-        setOnlineIds(ids);
+        // Each value is an array of presence records for that socket
+        const ids = Object.values(state)
+          .flat()
+          .map((p) => p.user_id)
+          .filter(Boolean);
+        setOnlineIds([...new Set(ids)]);
+      })
+      .on("presence", { event: "leave" }, () => {
+        const state = room.presenceState<{ user_id: string }>();
+        const ids = Object.values(state)
+          .flat()
+          .map((p) => p.user_id)
+          .filter(Boolean);
+        setOnlineIds([...new Set(ids)]);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            await room.track({ user_id: user.id, online_at: new Date().toISOString() });
+            await room.track({ user_id: user.id });
           }
         }
       });
 
-    return () => { supabase.removeChannel(room); };
+    return () => {
+      room.untrack();
+      supabase.removeChannel(room);
+    };
   }, []);
 
   return { onlineIds };

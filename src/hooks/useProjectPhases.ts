@@ -14,40 +14,87 @@ export interface Phase {
   created_at: string;
 }
 
-export function useProjectPhases(projectId: string | null) {
+export function useProjectPhases(slug: string | null) {
   const [phases, setPhases] = useState<Phase[]>([]);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!projectId) { setPhases([]); setLoading(false); return; }
-
-    const supabase = createClient();
-    const { data, error: err } = await supabase
-      .from("project_phases")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("order_index", { ascending: true });
-
-    if (err) {
-      console.error("[useProjectPhases] fetch error:", err.message, "projectId:", projectId);
-      setError(err.message);
-    } else {
-      console.debug("[useProjectPhases] loaded", data?.length, "phases for", projectId);
-      setPhases(data || []);
-      setError(null);
-    }
-    setLoading(false);
-  }, [projectId]);
-
+  // Resolve slug → UUID, then fetch phases
   useEffect(() => {
-    load();
+    if (!slug) {
+      setPhases([]);
+      setProjectId(null);
+      setLoading(false);
+      return;
+    }
 
+    let cancelled = false;
+    const supabase = createClient();
+
+    const run = async () => {
+      setLoading(true);
+
+      // Step 1: resolve UUID from slug
+      const { data: proj, error: projErr } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("slug", slug)
+        .single();
+
+      if (cancelled) return;
+
+      if (projErr || !proj) {
+        console.error("[useProjectPhases] project not found for slug:", slug, projErr?.message);
+        setError(projErr?.message ?? "Project not found");
+        setLoading(false);
+        return;
+      }
+
+      const resolvedId = proj.id as string;
+      setProjectId(resolvedId);
+
+      // Step 2: fetch phases by UUID
+      const { data, error: phasesErr } = await supabase
+        .from("project_phases")
+        .select("*")
+        .eq("project_id", resolvedId)
+        .order("order_index", { ascending: true });
+
+      if (cancelled) return;
+
+      if (phasesErr) {
+        console.error("[useProjectPhases] fetch error:", phasesErr.message, "id:", resolvedId);
+        setError(phasesErr.message);
+      } else {
+        setPhases(data || []);
+        setError(null);
+      }
+      setLoading(false);
+    };
+
+    run();
+
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  // Realtime subscription — re-subscribe when projectId is resolved
+  useEffect(() => {
     if (!projectId) return;
     const supabase = createClient();
+
+    const reload = async () => {
+      const { data } = await supabase
+        .from("project_phases")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("order_index", { ascending: true });
+      if (data) setPhases(data);
+    };
+
     const channel = supabase
       .channel(`phases-${projectId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "project_phases", filter: `project_id=eq.${projectId}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "project_phases", filter: `project_id=eq.${projectId}` }, reload)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -82,5 +129,5 @@ export function useProjectPhases(projectId: string | null) {
     return !error;
   }, []);
 
-  return { phases, loading, error, getProgress, addPhase, updatePhase, deletePhase };
+  return { phases, projectId, loading, error, getProgress, addPhase, updatePhase, deletePhase };
 }

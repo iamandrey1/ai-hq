@@ -64,11 +64,14 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
   const project = projects.find(p => p.slug === slug);
 
-  const { phases, addPhase, updatePhase, deletePhase } = useProjectPhases(project?.id ?? null);
-  const { checklist, toggleItem, addItem, updateItem, deleteItem, progress, getByPhase } = useProjectChecklist(project?.id ?? null);
-  const { kpis, updateValue, getProgress, getProgressColor } = useProjectKpis(project?.id ?? null);
-  const { chartData, totalProfit } = useProjectForecast(project?.id ?? null);
-  const { risks, resolveRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks } = useProjectRisks(project?.id ?? null);
+  // Pass slug directly — hook resolves UUID internally to avoid race condition
+  const { phases, projectId, addPhase, updatePhase, deletePhase } = useProjectPhases(slug);
+  // Once projectId is resolved by useProjectPhases, use it for all other hooks
+  const resolvedId = projectId ?? project?.id ?? null;
+  const { checklist, toggleItem, addItem, updateItem, deleteItem, progress, getByPhase } = useProjectChecklist(resolvedId);
+  const { kpis, updateValue, getProgress, getProgressColor } = useProjectKpis(resolvedId);
+  const { chartData, totalProfit } = useProjectForecast(resolvedId);
+  const { risks, resolveRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks } = useProjectRisks(resolvedId);
 
   // Auto-expand active phase
   useEffect(() => {
