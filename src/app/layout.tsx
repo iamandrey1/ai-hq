@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { ParticleBackground } from "@/components/ParticleBackground";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const inter = Inter({
@@ -43,6 +44,7 @@ export default function RootLayout({
         <ParticleBackground />
         <Toaster position="top-right" theme="system" richColors />
         {children}
+        <Analytics />
       </body>
     </html>
   );
