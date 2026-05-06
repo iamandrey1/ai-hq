@@ -70,10 +70,10 @@ export default function TasksPage() {
       return;
     }
     if (editingTask?.id) {
-      await updateTask(editingTask.id, form);
+      await updateTask(editingTask.id, form as Parameters<typeof updateTask>[1]);
       toast.success("Задача обновлена");
     } else {
-      await createTask(form as any);
+      await createTask(form as Parameters<typeof createTask>[0]);
       toast.success("Задача создана");
     }
     setModalOpen(false);
@@ -81,9 +81,9 @@ export default function TasksPage() {
     setForm({ title: "", description: "", project_id: "", priority: "medium", status: "todo" });
   };
 
-  const handleStatusChange = async (task: any, status: string) => {
+  const handleStatusChange = async (task: Task, status: Task["status"]) => {
     await updateTask(task.id, { status });
-    toast.success(`Статус: ${statusLabels[status as keyof typeof statusLabels]}`);
+    toast.success(`Статус: ${statusLabels[status]}`);
     setOpenMenu(null);
   };
 

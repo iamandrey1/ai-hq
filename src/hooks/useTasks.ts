@@ -73,21 +73,25 @@ export function useTasks() {
   }, []);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
+    // Only pass fields that exist on the tasks table — avoids trigger errors from stale schema
+    const allowed = ["title", "description", "project_id", "status", "priority"] as const;
+    const sanitized: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (key in updates) sanitized[key] = updates[key as keyof typeof updates];
+    }
+
     let prev: Task | undefined;
     setTasks((old) => {
       prev = old.find((t) => t.id === id);
-      return old.map((t) => t.id === id ? { ...t, ...updates } : t);
+      return old.map((t) => t.id === id ? { ...t, ...sanitized } : t);
     });
 
-    console.log("updateTask called:", id, updates);
     const supabase = createClient();
     const { data, error } = await supabase
       .from("tasks")
-      .update(updates)
+      .update(sanitized)
       .eq("id", id)
       .select();
-
-    console.log("supabase response:", error, data);
 
     if (error) {
       if (prev) setTasks((old) => old.map((t) => t.id === id ? prev! : t));
