@@ -1,12 +1,14 @@
 "use client";
 import { useState, useEffect, use, useCallback } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { useProjects } from "@/hooks/useProjects";
 import { useProjectPhases, Phase } from "@/hooks/useProjectPhases";
 import { useProjectChecklist, ChecklistItem } from "@/hooks/useProjectChecklist";
 import { useProjectKpis, Kpi } from "@/hooks/useProjectKpis";
 import { useProjectForecast } from "@/hooks/useProjectForecast";
 import { useProjectRisks, Risk } from "@/hooks/useProjectRisks";
+import { useProjectSteps } from "@/hooks/useProjectSteps";
 import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFileLinks";
 import { useCustomTables, useCustomTableData, CustomColumn } from "@/hooks/useCustomTable";
 import { Corridor } from "@/components/Corridor";
@@ -15,6 +17,7 @@ import {
   ArrowLeft, ExternalLink, ChevronDown, ChevronRight, Check,
   Plus, Pencil, Trash2, TrendingUp, AlertTriangle, HelpCircle,
   Link as LinkIcon, Search, X, FileText, Github, Figma, Globe, Table, HardDrive, Database,
+  Clock, ChevronRight as ArrowRight,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
@@ -66,12 +69,17 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
   const [editingPhaseTitle, setEditingPhaseTitle] = useState("");
 
+  // Step sheet state
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
+
   const project = projects.find(p => p.slug === slug);
 
   // Pass slug directly — hook resolves UUID internally to avoid race condition
   const { phases, projectId, addPhase, updatePhase, deletePhase } = useProjectPhases(slug);
   // Once projectId is resolved by useProjectPhases, use it for all other hooks
   const resolvedId = projectId ?? project?.id ?? null;
+  const { steps, toggleStep, progress: stepsProgress } = useProjectSteps(resolvedId);
   const { checklist, toggleItem, addItem, updateItem, deleteItem, progress, getByPhase } = useProjectChecklist(resolvedId);
   const { kpis, updateValue, updateKpi, getProgress, getProgressColor } = useProjectKpis(resolvedId);
   const { chartData, totalProfit } = useProjectForecast(resolvedId);
@@ -303,24 +311,126 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
           {/* ── PLAN ── */}
           {tab === "plan" && (
-            <div className="space-y-6">
-              {/* Edit mode toggle */}
-              <div className="flex items-center justify-between">
-                <div className="text-[12px] text-ink-3">
-                  {phases.length > 0 ? `${phases.length} фаз · ${progress.done}/${progress.total} задач` : ""}
+            <div className="space-y-5">
+              {/* Steps progress bar */}
+              {steps.length > 0 && (
+                <div className="bg-panel border border-line rounded-lg px-5 py-4">
+                  <div className="flex items-center justify-between text-[12px] mb-2.5">
+                    <span className="text-ink-3">{stepsProgress.done} / {stepsProgress.total} шагов</span>
+                    <span className="font-mono text-accent font-medium">{stepsProgress.percentage}%</span>
+                  </div>
+                  <div className="h-[4px] bg-line rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-accent rounded-full transition-all duration-700"
+                      style={{ width: `${stepsProgress.percentage}%` }}
+                    />
+                  </div>
                 </div>
-                <button
-                  onClick={() => setPlanEditMode(!planEditMode)}
-                  className={`flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded border transition-colors ${
-                    planEditMode
-                      ? "bg-accent/10 border-accent/40 text-accent"
-                      : "border-line text-ink-3 hover:text-ink hover:border-line-2"
-                  }`}
-                >
-                  <Pencil size={12} />
-                  {planEditMode ? "Готово" : "Редактировать план"}
-                </button>
-              </div>
+              )}
+
+              {/* Steps list */}
+              {steps.length > 0 ? (
+                <div className="space-y-2">
+                  {steps.map((step, idx) => {
+                    const isCompleted = step.completed;
+                    const prevDone = idx === 0 || steps[idx - 1].completed;
+                    const isFuture = !prevDone && !isCompleted;
+                    return (
+                      <div
+                        key={step.id}
+                        className={`group bg-panel border rounded-lg px-5 py-4 flex items-center gap-4 transition-all duration-200 ${
+                          isCompleted
+                            ? "border-line opacity-60"
+                            : isFuture
+                            ? "border-line opacity-50"
+                            : "border-line hover:border-accent/30"
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <button
+                          onClick={async () => {
+                            const ok = await toggleStep(step);
+                            if (ok) toast.success(step.completed ? "Шаг отменён" : "Шаг выполнен!");
+                          }}
+                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${
+                            isCompleted
+                              ? "bg-accent border-accent text-white"
+                              : "border-line-2 hover:border-accent/60"
+                          }`}
+                        >
+                          {isCompleted && <Check size={12} strokeWidth={3} />}
+                        </button>
+
+                        {/* Step number + content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-mono text-[11px] text-ink-3 shrink-0">
+                              {String(step.order_index).padStart(2, "0")}
+                            </span>
+                            <span className={`text-[14px] font-medium leading-snug ${
+                              isCompleted ? "line-through text-ink-3" : "text-ink"
+                            }`}>
+                              {step.title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 ml-7">
+                            {step.estimated_time && (
+                              <span className="flex items-center gap-1 text-[11px] text-ink-3">
+                                <Clock size={10} />
+                                {step.estimated_time}
+                              </span>
+                            )}
+                            {isCompleted && step.completed_at && (
+                              <span className="text-[10px] text-ink-3 font-mono">
+                                {new Date(step.completed_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Open instruction button */}
+                        {step.description_md && (
+                          <button
+                            onClick={() => { setSelectedStepId(step.id); setSheetVisible(true); }}
+                            className="shrink-0 p-2 rounded-lg text-ink-3 hover:text-accent hover:bg-accent/10 transition-all opacity-0 group-hover:opacity-100"
+                            title="Открыть инструкцию"
+                          >
+                            <ArrowRight size={16} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-ink-3 text-sm">
+                  Шаги для этого проекта не найдены.<br />
+                  <span className="text-[12px]">Добавьте шаги через SQL или заполните таблицу project_steps.</span>
+                </div>
+              )}
+
+              {/* Phases section (secondary) */}
+              <details className="group">
+                <summary className="cursor-pointer flex items-center gap-2 text-[12px] text-ink-3 hover:text-ink-2 transition-colors select-none list-none py-1">
+                  <ChevronRight size={13} className="group-open:rotate-90 transition-transform" />
+                  Фазы и чеклист ({phases.length} фаз · {progress.done}/{progress.total} пунктов)
+                </summary>
+                <div className="mt-3 space-y-4 pl-4 border-l border-line">
+                  {/* Edit mode toggle */}
+                  <div className="flex items-center justify-between">
+                    <div className="text-[11px] text-ink-3">{phases.length} фаз</div>
+                    <button
+                      onClick={() => setPlanEditMode(!planEditMode)}
+                      className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${
+                        planEditMode
+                          ? "bg-accent/10 border-accent/40 text-accent"
+                          : "border-line text-ink-3 hover:text-ink hover:border-line-2"
+                      }`}
+                    >
+                      <Pencil size={10} />
+                      {planEditMode ? "Готово" : "Редактировать"}
+                    </button>
+                  </div>
 
               {/* Phase stepper */}
               {phases.length > 0 && (
@@ -493,32 +603,34 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                 </div>
               )}
 
-              {/* Add phase */}
-              {planEditMode && (
-                <div className="mt-2">
-                  {addingPhase ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={newPhaseTitle}
-                        onChange={(e) => setNewPhaseTitle(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleAddPhase(); if (e.key === "Escape") { setAddingPhase(false); setNewPhaseTitle(""); } }}
-                        placeholder="Название фазы..."
-                        className="flex-1 bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                        autoFocus
-                      />
-                      <button onClick={handleAddPhase} className="px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2">Добавить</button>
-                      <button onClick={() => { setAddingPhase(false); setNewPhaseTitle(""); }} className="px-3 py-1.5 text-ink-3 hover:text-ink text-sm">Отмена</button>
+                  {/* Add phase */}
+                  {planEditMode && (
+                    <div className="mt-2">
+                      {addingPhase ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={newPhaseTitle}
+                            onChange={(e) => setNewPhaseTitle(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleAddPhase(); if (e.key === "Escape") { setAddingPhase(false); setNewPhaseTitle(""); } }}
+                            placeholder="Название фазы..."
+                            className="flex-1 bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                            autoFocus
+                          />
+                          <button onClick={handleAddPhase} className="px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2">Добавить</button>
+                          <button onClick={() => { setAddingPhase(false); setNewPhaseTitle(""); }} className="px-3 py-1.5 text-ink-3 hover:text-ink text-sm">Отмена</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddingPhase(true)}
+                          className="flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors px-4 py-2 border border-dashed border-line rounded-lg w-full"
+                        >
+                          <Plus size={13} />+ Добавить фазу
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => setAddingPhase(true)}
-                      className="flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors px-4 py-2 border border-dashed border-line rounded-lg w-full"
-                    >
-                      <Plus size={13} />+ Добавить фазу
-                    </button>
                   )}
                 </div>
-              )}
+              </details>
             </div>
           )}
 
@@ -767,6 +879,83 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
         </div>
       </main>
+
+      {/* ── Step instruction sheet ── */}
+      {sheetVisible && (() => {
+        const step = steps.find(s => s.id === selectedStepId);
+        if (!step) return null;
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/40 z-40"
+              onClick={() => setSheetVisible(false)}
+            />
+            {/* Sheet */}
+            <div className="step-sheet-enter fixed top-0 right-0 h-full w-full max-w-[560px] bg-panel border-l border-line z-50 flex flex-col shadow-2xl">
+              {/* Header */}
+              <div className="flex items-start gap-3 px-6 py-5 border-b border-line">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono text-[11px] text-ink-3">Шаг {step.order_index}</span>
+                    {step.estimated_time && (
+                      <span className="flex items-center gap-1 text-[11px] text-ink-3">
+                        <Clock size={10} />{step.estimated_time}
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-[17px] font-semibold text-ink leading-snug">{step.title}</h2>
+                </div>
+                <button
+                  onClick={() => setSheetVisible(false)}
+                  className="p-1.5 text-ink-3 hover:text-ink hover:bg-panel-2 rounded-lg transition-colors shrink-0 mt-0.5"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                {step.description_md ? (
+                  <div className="prose prose-invert prose-sm max-w-none
+                    prose-headings:text-ink prose-headings:font-semibold
+                    prose-p:text-ink-2 prose-p:leading-relaxed
+                    prose-li:text-ink-2
+                    prose-code:text-accent prose-code:bg-panel-2 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[12px] prose-code:font-mono
+                    prose-pre:bg-panel-2 prose-pre:border prose-pre:border-line
+                    prose-strong:text-ink
+                    prose-a:text-accent prose-a:no-underline hover:prose-a:underline
+                    prose-hr:border-line">
+                    <ReactMarkdown>{step.description_md}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="text-ink-3 text-sm">Инструкция не добавлена.</div>
+                )}
+              </div>
+
+              {/* Footer action */}
+              <div className="px-6 py-4 border-t border-line">
+                <button
+                  onClick={async () => {
+                    const ok = await toggleStep(step);
+                    if (ok) {
+                      toast.success(step.completed ? "Шаг отменён" : "Шаг выполнен!");
+                      setSheetVisible(false);
+                    }
+                  }}
+                  className={`w-full py-3 rounded-lg text-sm font-medium transition-colors ${
+                    step.completed
+                      ? "bg-panel-2 border border-line text-ink hover:bg-line"
+                      : "bg-accent text-white hover:bg-accent-2"
+                  }`}
+                >
+                  {step.completed ? "Снять отметку" : "Отметить выполненным"}
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
