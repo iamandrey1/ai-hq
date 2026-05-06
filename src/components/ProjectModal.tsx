@@ -31,7 +31,6 @@ const categories = [
 ];
 
 export function ProjectModal({ project, onClose, onSaved }: ProjectModalProps) {
-  const supabase = createClient();
   const [form, setForm] = useState<Project>({
     name: project?.name || "",
     slug: project?.slug || "",
@@ -54,13 +53,14 @@ export function ProjectModal({ project, onClose, onSaved }: ProjectModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!form.name.trim()) {
       toast.error("Название обязательно");
       return;
     }
 
     const slug = form.slug || form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const supabase = createClient();
 
     if (project?.id) {
       const { error } = await supabase

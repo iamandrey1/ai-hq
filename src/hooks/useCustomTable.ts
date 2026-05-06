@@ -33,10 +33,10 @@ export interface CustomRow {
 export function useCustomTables(projectId: string | null) {
   const [tables, setTables] = useState<CustomTable[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   const load = useCallback(async () => {
     if (!projectId) { setTables([]); setLoading(false); return; }
+    const supabase = createClient();
     const { data } = await supabase
       .from("custom_tables")
       .select("*")
@@ -48,27 +48,29 @@ export function useCustomTables(projectId: string | null) {
 
   useEffect(() => {
     load();
+    const supabase = createClient();
     const channel = supabase
       .channel(`custom-tables-${projectId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "custom_tables", filter: projectId ? `project_id=eq.${projectId}` : undefined }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [projectId]);
+  }, [projectId, load]);
 
   const createTable = useCallback(async (title: string) => {
     if (!projectId) return null;
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     const maxOrder = tables.reduce((m, t) => Math.max(m, t.order_num), -1);
     const { data, error } = await supabase
       .from("custom_tables")
       .insert({ project_id: projectId, title, order_num: maxOrder + 1, created_by: user?.id || null })
-      .select()
-      .single();
+      .select().single();
     if (error) return null;
     return data as CustomTable;
   }, [projectId, tables]);
 
   const deleteTable = useCallback(async (id: string) => {
+    const supabase = createClient();
     const { error } = await supabase.from("custom_tables").delete().eq("id", id);
     return !error;
   }, []);
@@ -80,16 +82,14 @@ export function useCustomTableData(tableId: string | null) {
   const [columns, setColumns] = useState<CustomColumn[]>([]);
   const [rows, setRows] = useState<CustomRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   const load = useCallback(async () => {
     if (!tableId) { setColumns([]); setRows([]); setLoading(false); return; }
-
+    const supabase = createClient();
     const [colsRes, rowsRes] = await Promise.all([
       supabase.from("custom_columns").select("*").eq("table_id", tableId).order("order_num", { ascending: true }),
       supabase.from("custom_rows").select("*").eq("table_id", tableId).order("order_num", { ascending: true }),
     ]);
-
     if (colsRes.data) setColumns(colsRes.data as CustomColumn[]);
     if (rowsRes.data) setRows(rowsRes.data as CustomRow[]);
     setLoading(false);
@@ -98,18 +98,18 @@ export function useCustomTableData(tableId: string | null) {
   useEffect(() => {
     load();
     if (!tableId) return;
-
+    const supabase = createClient();
     const channel = supabase
       .channel(`custom-data-${tableId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "custom_columns", filter: `table_id=eq.${tableId}` }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "custom_rows",   filter: `table_id=eq.${tableId}` }, () => load())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
-  }, [tableId]);
+  }, [tableId, load]);
 
   const addColumn = useCallback(async (name: string, type: CustomColumn["type"]) => {
     if (!tableId) return null;
+    const supabase = createClient();
     const maxOrder = columns.reduce((m, c) => Math.max(m, c.order_num), -1);
     const { data, error } = await supabase
       .from("custom_columns")
@@ -119,8 +119,8 @@ export function useCustomTableData(tableId: string | null) {
   }, [tableId, columns]);
 
   const deleteColumn = useCallback(async (id: string) => {
+    const supabase = createClient();
     await supabase.from("custom_columns").delete().eq("id", id);
-    // Remove column data from all rows
     setRows(prev => prev.map(row => {
       const d = { ...row.data };
       delete d[id];
@@ -130,6 +130,7 @@ export function useCustomTableData(tableId: string | null) {
 
   const addRow = useCallback(async () => {
     if (!tableId) return null;
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     const maxOrder = rows.reduce((m, r) => Math.max(m, r.order_num), -1);
     const { data, error } = await supabase
@@ -142,15 +143,15 @@ export function useCustomTableData(tableId: string | null) {
   const updateCell = useCallback(async (rowId: string, colId: string, value: unknown) => {
     const row = rows.find(r => r.id === rowId);
     if (!row) return;
-
     const newData = { ...row.data, [colId]: value };
-    // Optimistic
     setRows(prev => prev.map(r => r.id === rowId ? { ...r, data: newData } : r));
+    const supabase = createClient();
     await supabase.from("custom_rows").update({ data: newData }).eq("id", rowId);
   }, [rows]);
 
   const deleteRow = useCallback(async (id: string) => {
     setRows(prev => prev.filter(r => r.id !== id));
+    const supabase = createClient();
     await supabase.from("custom_rows").delete().eq("id", id);
   }, []);
 

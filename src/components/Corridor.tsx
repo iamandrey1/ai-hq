@@ -48,8 +48,6 @@ export function Corridor() {
   const [editName, setEditName] = useState("");
   const editRef = useRef<HTMLInputElement>(null);
 
-  const supabase = createClient();
-
   // ── Theme ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem("theme") as "dark" | "light" | null;
@@ -65,24 +63,26 @@ export function Corridor() {
 
   // ── Profiles ───────────────────────────────────────────────────────────────
   const loadProfiles = useCallback(async () => {
+    const supabase = createClient();
     const { data } = await supabase.from("profiles").select("*");
     if (data) setAllProfiles(data as Profile[]);
   }, []);
 
   useEffect(() => {
     loadProfiles();
-
+    const supabase = createClient();
     const channel = supabase
       .channel("corridor-profiles")
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => loadProfiles())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [loadProfiles]);
 
   // ── Badge counts ───────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchCounts = async () => {
+      const supabase = createClient();
       const [tasksRes, subsRes, projRes] = await Promise.all([
         supabase.from("tasks").select("id", { count: "exact", head: true }).neq("status", "done"),
         supabase.from("subscriptions").select("cost_monthly_usd").eq("status", "active"),
@@ -115,6 +115,7 @@ export function Corridor() {
     setAllProfiles(prev => prev.map(p => p.id === id ? { ...p, full_name: trimmed } : p));
     cancelEdit();
 
+    const supabase = createClient();
     await supabase.from("profiles").update({ full_name: trimmed }).eq("id", id);
   };
 
