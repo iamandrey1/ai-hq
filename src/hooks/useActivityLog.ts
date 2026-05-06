@@ -64,7 +64,7 @@ export function useActivityLog(options?: { projectId?: string; limit?: number })
 
     const supabase = createClient();
     const channel = supabase
-      .channel("activity-log-rt")
+      .channel(`activity-log-rt-${Date.now()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, async (payload) => {
         // Fetch the new entry with joins so we have profile/project names
         const { data } = await supabase

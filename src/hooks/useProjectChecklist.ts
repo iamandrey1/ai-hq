@@ -55,7 +55,7 @@ export function useProjectChecklist(projectId: string | null) {
     fetchChecklist();
 
     const channel = supabase
-      .channel(`checklist-${projectId}`)
+      .channel(`checklist-${projectId}-${Date.now()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "project_checklist", filter: `project_id=eq.${projectId}` }, (payload) => {
         const item = payload.new as ChecklistItem;
         setChecklist((prev) =>

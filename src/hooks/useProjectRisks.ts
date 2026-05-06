@@ -39,7 +39,7 @@ export function useProjectRisks(projectId: string | null) {
     fetchRisks();
 
     const channel = supabase
-      .channel(`risks-${projectId}`)
+      .channel(`risks-${projectId}-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "project_risks", filter: `project_id=eq.${projectId}` }, () => fetchRisks())
       .subscribe();
 

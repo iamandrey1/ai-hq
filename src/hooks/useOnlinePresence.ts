@@ -16,7 +16,7 @@ export function useOnlinePresence() {
 
   useEffect(() => {
     const supabase = createClient();
-    const room = supabase.channel("ai-hq-presence");
+    const room = supabase.channel(`ai-hq-presence-${Date.now()}`);
     let heartbeat: ReturnType<typeof setInterval> | null = null;
 
     room

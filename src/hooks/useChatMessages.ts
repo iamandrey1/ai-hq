@@ -51,7 +51,7 @@ export function useChatMessages() {
       if (!user) return;
 
       channel = supabase
-        .channel("messages-realtime")
+        .channel(`messages-realtime-${Date.now()}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
           const m = payload.new as {
             id: string; sender: string; sender_name: string;

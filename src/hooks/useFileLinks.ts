@@ -78,7 +78,7 @@ export function useFileLinks(projectId?: string | null) {
     load();
 
     const channel = supabase
-      .channel(`file-links-${projectId ?? "all"}`)
+      .channel(`file-links-${projectId ?? "all"}-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "file_links" }, () => load())
       .subscribe();
 
