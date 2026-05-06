@@ -79,15 +79,24 @@ export function useTasks() {
       return old.map((t) => t.id === id ? { ...t, ...updates } : t);
     });
 
+    console.log("updateTask called:", id, updates);
     const supabase = createClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("tasks")
       .update(updates)
-      .eq("id", id);
+      .eq("id", id)
+      .select();
+
+    console.log("supabase response:", error, data);
 
     if (error) {
       if (prev) setTasks((old) => old.map((t) => t.id === id ? prev! : t));
-      console.error("updateTask:", error.message);
+      console.error("updateTask error:", error.message, error.code, error.details);
+      return false;
+    }
+    if (!data || data.length === 0) {
+      if (prev) setTasks((old) => old.map((t) => t.id === id ? prev! : t));
+      console.warn("updateTask: 0 rows — id не найден или RLS блокирует:", id);
       return false;
     }
 
