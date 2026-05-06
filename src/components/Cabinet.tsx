@@ -122,7 +122,7 @@ export function Cabinet() {
         </div>
       </div>
 
-      <div ref={feedRef} className="chat-feed flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={feedRef} className="chat-feed flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ maxHeight: "480px" }}>
         {messages.map((msg) => (
           <div
             key={msg.id}

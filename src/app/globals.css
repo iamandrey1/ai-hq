@@ -4,20 +4,20 @@
 
 /* ─── Dark theme (default) ─── */
 :root {
-  --color-bg:      10 10 10;      /* #0A0A0A */
-  --color-bg-2:    17 17 17;      /* #111111 */
-  --color-panel:   22 22 22;      /* #161616 */
-  --color-panel-2: 28 28 28;      /* #1C1C1C */
-  --color-line:    38 38 38;      /* #262626 */
-  --color-line-2:  50 50 50;      /* #323232 */
-  --color-ink:     248 248 248;   /* #F8F8F8 */
-  --color-ink-2:   160 160 160;   /* #A0A0A0 */
-  --color-ink-3:   80 80 80;      /* #505050 */
-  --color-accent:  124 58 237;    /* #7C3AED */
-  --color-accent-2:148 97 251;    /* #9461FB */
-  --color-green:   34 197 94;     /* #22C55E */
-  --color-red:     239 68 68;     /* #EF4444 */
-  --color-blue:    59 130 246;    /* #3B82F6 */
+  --color-bg:      4 4 10;         /* #04040A */
+  --color-bg-2:    8 8 16;         /* #080810 */
+  --color-panel:   12 12 22;       /* #0C0C16 */
+  --color-panel-2: 16 16 24;       /* #101018 */
+  --color-line:    22 22 31;       /* #16161F */
+  --color-line-2:  28 28 40;       /* #1C1C28 */
+  --color-ink:     216 224 234;    /* #D8E0EA */
+  --color-ink-2:   136 146 160;    /* #8892A0 */
+  --color-ink-3:   69 78 92;       /* #454E5C */
+  --color-accent:  77 158 191;     /* #4D9EBF */
+  --color-accent-2:58 143 168;     /* #3A8FA8 */
+  --color-green:   61 153 112;     /* #3D9970 */
+  --color-red:     192 68 74;      /* #C0444A */
+  --color-blue:    59 130 246;     /* #3B82F6 */
 }
 
 /* ─── Light theme ─── */
@@ -107,6 +107,16 @@ html.light {
 }
 .animate-pulse-slow {
   animation: pulseSlow 2s infinite;
+}
+
+/* ─── Fade-up stagger ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fadeUp 0.3s ease forwards;
+  opacity: 0;
 }
 
 /* ─── Progress bar ─── */

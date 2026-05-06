@@ -85,7 +85,7 @@ export function ParticleBackground() {
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(mx, my);
-          ctx.strokeStyle = `rgba(124,58,237,${(1 - dc / CURSOR) * 0.55})`;
+          ctx.strokeStyle = `rgba(77,158,191,${(1 - dc / CURSOR) * 0.55})`;
           ctx.lineWidth = 0.8;
           ctx.stroke();
         }

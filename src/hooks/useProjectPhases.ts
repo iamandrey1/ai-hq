@@ -111,7 +111,7 @@ export function useProjectPhases(slug: string | null) {
     const maxOrder = phases.reduce((m, p) => Math.max(m, p.order_index), 0);
     const { data, error } = await supabase
       .from("project_phases")
-      .insert({ project_id: projectId, title, status: "pending", order_index: maxOrder + 1, start_week: 0, end_week: 0 })
+      .insert({ project_id: projectId, title, status: "pending", order_index: maxOrder + 1 })
       .select().single();
     if (error) { console.error(error); return null; }
     return data as Phase;
