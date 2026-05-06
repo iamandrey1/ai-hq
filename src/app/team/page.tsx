@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { isOnline } from "@/lib/utils";
 import type { Profile } from "@/types/index";
 
 const agentColors: Record<string, string> = {
@@ -135,10 +136,17 @@ export default function TeamPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-1 rounded bg-green/10 text-green">
-                    <span className="w-1.5 h-1.5 bg-green rounded-full" />
-                    Online
-                  </span>
+                  {isOnline(p.last_seen) ? (
+                    <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-1 rounded bg-green/10 text-green">
+                      <span className="w-1.5 h-1.5 bg-green rounded-full" />
+                      Online
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-1 rounded bg-ink-3/10 text-ink-3">
+                      <span className="w-1.5 h-1.5 bg-ink-3 rounded-full" />
+                      Offline
+                    </span>
+                  )}
                   {isMe && !isEditing && (
                     <button
                       onClick={() => startEdit(p)}

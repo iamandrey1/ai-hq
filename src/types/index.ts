@@ -5,7 +5,20 @@ export interface Profile {
   full_name: string;
   initials: string;
   role: "ceo" | "agent" | "admin";
+  last_seen?: string | null;
   created_at: string;
+}
+
+export interface RoadmapItem {
+  id: string;
+  project_id: string | null;
+  title: string;
+  description: string | null;
+  status: "planned" | "in_progress" | "done";
+  target_date: string | null;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Project {

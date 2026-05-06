@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn, isOnline } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { useProfile } from "@/hooks/useProfile";
 import { useOnlinePresence } from "@/hooks/useOnlinePresence";
@@ -34,7 +34,7 @@ export function Corridor() {
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useStore();
   const { profile } = useProfile();
-  const { onlineIds } = useOnlinePresence();
+  useOnlinePresence(); // heartbeat: обновляет own last_seen каждые 30с
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -234,7 +234,7 @@ export function Corridor() {
                     </div>
                     <span className={cn(
                       "absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-panel",
-                      onlineIds.includes(p.id) ? "bg-green" : "bg-ink-3"
+                      isOnline(p.last_seen) ? "bg-green" : "bg-ink-3"
                     )} />
                   </div>
 

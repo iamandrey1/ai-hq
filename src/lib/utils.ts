@@ -5,6 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function isOnline(lastSeen?: string | null): boolean {
+  if (!lastSeen) return false;
+  const diff = Date.now() - new Date(lastSeen).getTime();
+  return diff >= 0 && diff < 5 * 60 * 1000;
+}
+
 export function formatTime(date: Date): string {
   return date.toLocaleTimeString("ru-RU", {
     hour: "2-digit",
