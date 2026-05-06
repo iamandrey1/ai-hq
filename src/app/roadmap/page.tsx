@@ -186,7 +186,7 @@ export default function RoadmapPage() {
                     />
                     <Line type="monotone" dataKey="revenue" stroke="#22c55e"  strokeWidth={1.5} dot={false} name="Доход" />
                     <Line type="monotone" dataKey="costs"   stroke="#ef4444"  strokeWidth={1.5} dot={false} name="Расходы" />
-                    <Line type="monotone" dataKey="profit"  stroke="#7c3aed"  strokeWidth={1.5} dot={false} name="Прибыль" strokeDasharray="4 2" />
+                    <Line type="monotone" dataKey="profit"  stroke="#4D9EBF"  strokeWidth={1.5} dot={false} name="Прибыль" strokeDasharray="4 2" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -195,7 +195,7 @@ export default function RoadmapPage() {
                 {[
                   { color: "#22c55e", label: "Доход" },
                   { color: "#ef4444", label: "Расходы" },
-                  { color: "#7c3aed", label: "Прибыль", dashed: true },
+                  { color: "#4D9EBF", label: "Прибыль", dashed: true },
                 ].map(({ color, label, dashed }) => (
                   <div key={label} className="flex items-center gap-1.5 text-[11px] text-ink-3">
                     <div className={`w-4 h-px ${dashed ? "border-t border-dashed" : ""}`} style={{ background: dashed ? "none" : color, borderColor: color }} />

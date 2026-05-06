@@ -34,11 +34,11 @@ export default {
       borderRadius: {
         DEFAULT: "6px",
         sm: "4px",
-        md: "6px",
-        lg: "8px",
-        xl: "8px",
-        "2xl": "8px",
-        "3xl": "10px",
+        md: "8px",
+        lg: "14px",
+        xl: "14px",
+        "2xl": "16px",
+        "3xl": "20px",
         full: "9999px",
       },
       animation: {

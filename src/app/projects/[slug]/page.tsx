@@ -13,10 +13,10 @@ import { Corridor } from "@/components/Corridor";
 import { toast } from "sonner";
 import {
   ArrowLeft, ExternalLink, ChevronDown, ChevronRight, Check,
-  Plus, Pencil, Trash2, TrendingUp, AlertTriangle,
+  Plus, Pencil, Trash2, TrendingUp, AlertTriangle, HelpCircle,
   Link as LinkIcon, Search, X, FileText, Github, Figma, Globe, Table, HardDrive, Database,
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
 type Tab = "overview" | "plan" | "kpi" | "risks" | "files" | "data";
 
@@ -55,6 +55,10 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const [editTitle, setEditTitle] = useState("");
   const [updatingKpi, setUpdatingKpi] = useState<Kpi | null>(null);
   const [newKpiValue, setNewKpiValue] = useState("");
+  const [kpiEditForm, setKpiEditForm] = useState({ name: "", target_value: "", unit: "" });
+
+  const [addingRisk, setAddingRisk] = useState(false);
+  const [riskForm, setRiskForm] = useState({ title: "", probability: "medium" as Risk["probability"], mitigation: "" });
 
   const [planEditMode, setPlanEditMode] = useState(false);
   const [addingPhase, setAddingPhase] = useState(false);
@@ -69,9 +73,9 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   // Once projectId is resolved by useProjectPhases, use it for all other hooks
   const resolvedId = projectId ?? project?.id ?? null;
   const { checklist, toggleItem, addItem, updateItem, deleteItem, progress, getByPhase } = useProjectChecklist(resolvedId);
-  const { kpis, updateValue, getProgress, getProgressColor } = useProjectKpis(resolvedId);
+  const { kpis, updateValue, updateKpi, getProgress, getProgressColor } = useProjectKpis(resolvedId);
   const { chartData, totalProfit } = useProjectForecast(resolvedId);
-  const { risks, resolveRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks } = useProjectRisks(resolvedId);
+  const { risks, addRisk, resolveRisk, updateRisk, deleteRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks } = useProjectRisks(resolvedId);
 
   // Auto-expand active phase
   useEffect(() => {
@@ -134,10 +138,22 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
   const handleUpdateKpi = async () => {
     if (!updatingKpi) return;
-    const n = parseFloat(newKpiValue);
-    if (isNaN(n)) return;
-    const ok = await updateValue(updatingKpi.id, n);
+    const current = parseFloat(newKpiValue);
+    if (isNaN(current)) return;
+    const updates: Parameters<typeof updateKpi>[1] = { current_value: current };
+    const tgt = parseFloat(kpiEditForm.target_value);
+    if (!isNaN(tgt) && tgt > 0) updates.target_value = tgt;
+    if (kpiEditForm.name.trim()) updates.name = kpiEditForm.name.trim();
+    if (kpiEditForm.unit.trim() !== undefined) updates.unit = kpiEditForm.unit.trim() || null;
+    const ok = await updateKpi(updatingKpi.id, updates);
     if (ok) { toast.success("KPI обновлён"); setUpdatingKpi(null); setNewKpiValue(""); }
+  };
+
+  const handleAddRisk = async () => {
+    if (!riskForm.title.trim()) return;
+    const r = await addRisk({ title: riskForm.title.trim(), probability: riskForm.probability, mitigation: riskForm.mitigation.trim() || undefined });
+    if (r) { toast.success("Риск добавлен"); setAddingRisk(false); setRiskForm({ title: "", probability: "medium", mitigation: "" }); }
+    else toast.error("Ошибка");
   };
 
   const getPhaseProgress = (phaseId: string) => {
@@ -515,7 +531,10 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                   const barColor = getProgressColor(prog);
                   return (
                     <div key={kpi.id} className="bg-panel border border-line rounded-lg p-5">
-                      <div className="text-[12px] text-ink-3 mb-2">{kpi.name}</div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="text-[12px] text-ink-3">{kpi.name}</span>
+                        {kpi.description && <KpiTooltip text={kpi.description} />}
+                      </div>
                       <div className="text-[22px] font-semibold text-ink mb-1">
                         {kpi.current_value.toLocaleString()}
                         {kpi.unit && <span className="text-[14px] text-ink-3 ml-1">{kpi.unit}</span>}
@@ -523,33 +542,68 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                         <span className="text-[16px] text-ink-2">{kpi.target_value.toLocaleString()}</span>
                       </div>
                       <div className="h-[3px] bg-line rounded-full overflow-hidden mb-3">
-                        <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${Math.min(prog, 100)}%` }} />
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(prog, 100)}%`,
+                            background: prog >= 70
+                              ? "linear-gradient(90deg, rgb(var(--color-green)), #5abf8a)"
+                              : prog >= 30
+                              ? "linear-gradient(90deg, #d97706, #f59e0b)"
+                              : "linear-gradient(90deg, rgb(var(--color-red)), #e06b70)",
+                          }}
+                        />
                       </div>
                       <button
-                        onClick={() => { setUpdatingKpi(kpi); setNewKpiValue(kpi.current_value.toString()); }}
+                        onClick={() => {
+                          setUpdatingKpi(kpi);
+                          setNewKpiValue(kpi.current_value.toString());
+                          setKpiEditForm({ name: kpi.name, target_value: kpi.target_value.toString(), unit: kpi.unit || "" });
+                        }}
                         className="text-[12px] text-accent hover:text-accent-2 transition-colors"
                       >
-                        Обновить значение
+                        Редактировать
                       </button>
                     </div>
                   );
                 })}
               </div>
 
-              {/* KPI update modal */}
+              {/* KPI edit modal */}
               {updatingKpi && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                  <div className="bg-panel border border-line rounded-lg p-5 w-80">
-                    <div className="text-[14px] font-semibold text-ink mb-3">{updatingKpi.name}</div>
-                    <input
-                      type="number"
-                      value={newKpiValue}
-                      onChange={e => setNewKpiValue(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleUpdateKpi()}
-                      className="w-full bg-bg border border-line rounded px-3 py-2 text-ink text-sm outline-none focus:border-accent/50 mb-3"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
+                  <div className="bg-panel border border-line rounded-lg p-5 w-[340px]">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-[14px] font-semibold text-ink">Редактировать KPI</div>
+                      <button onClick={() => setUpdatingKpi(null)} className="text-ink-3 hover:text-ink"><X size={14} /></button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[11px] text-ink-3 mb-1 block">Название</label>
+                        <input value={kpiEditForm.name} onChange={e => setKpiEditForm(f => ({ ...f, name: e.target.value }))}
+                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" autoFocus />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[11px] text-ink-3 mb-1 block">Текущее значение</label>
+                          <input type="number" value={newKpiValue} onChange={e => setNewKpiValue(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && handleUpdateKpi()}
+                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-ink-3 mb-1 block">Цель</label>
+                          <input type="number" value={kpiEditForm.target_value} onChange={e => setKpiEditForm(f => ({ ...f, target_value: e.target.value }))}
+                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-ink-3 mb-1 block">Единица измерения</label>
+                        <input value={kpiEditForm.unit} onChange={e => setKpiEditForm(f => ({ ...f, unit: e.target.value }))}
+                          placeholder="%  /  $  /  шт"
+                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
                       <button onClick={() => setUpdatingKpi(null)} className="flex-1 px-3 py-2 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">Отмена</button>
                       <button onClick={handleUpdateKpi} className="flex-1 px-3 py-2 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">Сохранить</button>
                     </div>
@@ -577,7 +631,7 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                       <LineChart data={chartData}>
                         <XAxis dataKey="month" tick={{ fontSize: 10, fill: "rgb(var(--color-ink-3))" }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fontSize: 10, fill: "rgb(var(--color-ink-3))" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-                        <Tooltip
+                        <RechartsTooltip
                           contentStyle={{ background: "rgb(var(--color-panel))", border: "1px solid rgb(var(--color-line))", borderRadius: "6px", fontSize: "12px" }}
                           labelStyle={{ color: "rgb(var(--color-ink-2))" }}
                         />
@@ -601,39 +655,103 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
           {/* ── RISKS ── */}
           {tab === "risks" && (
-            <div className="space-y-3">
-              {risks.length === 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="text-[12px] text-ink-3">
+                  {unresolvedRisks.length > 0 ? `${unresolvedRisks.length} активных рисков` : "Нет активных рисков"}
+                </div>
+                <button
+                  onClick={() => setAddingRisk(true)}
+                  className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 bg-accent text-white rounded hover:bg-accent-2 transition-colors"
+                >
+                  <Plus size={12} />Добавить риск
+                </button>
+              </div>
+
+              {risks.length === 0 && !addingRisk && (
                 <div className="text-center py-12 text-ink-3 text-sm">Рисков нет</div>
               )}
-              {risks.map(risk => (
-                <div
-                  key={risk.id}
-                  className={`bg-panel border border-line rounded-lg p-4 flex items-start gap-3 ${risk.is_resolved ? "opacity-40" : ""}`}
-                >
-                  <AlertTriangle size={15} className={`mt-0.5 shrink-0 ${risk.is_resolved ? "text-ink-3" : "text-amber-400"}`} />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[13px] font-medium ${risk.is_resolved ? "line-through text-ink-3" : "text-ink"}`}>
-                        {risk.title}
-                      </span>
-                      <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded text-white ${getProbabilityColor(risk.probability)}`}>
-                        {getProbabilityLabel(risk.probability)}
-                      </span>
+
+              <div className="space-y-2">
+                {risks.map(risk => (
+                  <div
+                    key={risk.id}
+                    className={`bg-panel border border-line rounded-lg p-4 flex items-start gap-3 group ${risk.is_resolved ? "opacity-40" : ""}`}
+                  >
+                    <AlertTriangle size={15} className={`mt-0.5 shrink-0 ${risk.is_resolved ? "text-ink-3" : "text-amber-400"}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[13px] font-medium ${risk.is_resolved ? "line-through text-ink-3" : "text-ink"}`}>
+                          {risk.title}
+                        </span>
+                        <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded text-white ${getProbabilityColor(risk.probability)}`}>
+                          {getProbabilityLabel(risk.probability)}
+                        </span>
+                      </div>
+                      {risk.mitigation && (
+                        <div className="text-[12px] text-ink-3">{risk.mitigation}</div>
+                      )}
                     </div>
-                    {risk.mitigation && (
-                      <div className="text-[12px] text-ink-3">{risk.mitigation}</div>
-                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {!risk.is_resolved && (
+                        <button
+                          onClick={() => resolveRisk(risk.id).then(ok => ok && toast.success("Риск решён"))}
+                          className="text-[12px] px-2.5 py-1 bg-panel-2 border border-line rounded text-ink-2 hover:bg-green/10 hover:text-green hover:border-green/30 transition-colors"
+                        >
+                          Решён
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteRisk(risk.id).then(ok => ok && toast.success("Удалено"))}
+                        className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-red transition-all"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
-                  {!risk.is_resolved && (
-                    <button
-                      onClick={() => resolveRisk(risk.id).then(ok => ok && toast.success("Риск решён"))}
-                      className="text-[12px] px-2.5 py-1 bg-panel-2 border border-line rounded text-ink-2 hover:bg-green/10 hover:text-green hover:border-green/30 transition-colors shrink-0"
+                ))}
+              </div>
+
+              {/* Add risk form */}
+              {addingRisk && (
+                <div className="bg-panel border border-accent/30 rounded-lg p-4 space-y-3">
+                  <div className="text-[13px] font-medium text-ink">Новый риск</div>
+                  <input
+                    value={riskForm.title}
+                    onChange={e => setRiskForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="Название риска..."
+                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                    autoFocus
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={riskForm.probability}
+                      onChange={e => setRiskForm(f => ({ ...f, probability: e.target.value as Risk["probability"] }))}
+                      className="bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
                     >
-                      Решён
+                      <option value="low">Низкая</option>
+                      <option value="medium">Средняя</option>
+                      <option value="high">Высокая</option>
+                    </select>
+                    <input
+                      value={riskForm.mitigation}
+                      onChange={e => setRiskForm(f => ({ ...f, mitigation: e.target.value }))}
+                      placeholder="Митигация (опционально)"
+                      className="bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setAddingRisk(false); setRiskForm({ title: "", probability: "medium", mitigation: "" }); }}
+                      className="flex-1 px-3 py-1.5 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">
+                      Отмена
                     </button>
-                  )}
+                    <button onClick={handleAddRisk}
+                      className="flex-1 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">
+                      Добавить
+                    </button>
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
 
@@ -654,6 +772,26 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function KpiTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative inline-flex">
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        className="w-3.5 h-3.5 rounded-full bg-line-2 text-ink-3 text-[9px] flex items-center justify-center hover:bg-accent/20 hover:text-accent transition-colors"
+      >
+        <HelpCircle size={9} />
+      </button>
+      {show && (
+        <div className="absolute left-5 top-0 z-20 bg-panel-2 border border-line-2 rounded px-2.5 py-1.5 text-[11px] text-ink-2 whitespace-nowrap max-w-[260px] shadow-xl pointer-events-none">
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function StatCard({ label, value, accent, danger, small }: {
   label: string; value: string; accent?: boolean; danger?: boolean; small?: boolean;

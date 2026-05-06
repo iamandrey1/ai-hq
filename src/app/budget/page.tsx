@@ -3,7 +3,8 @@
 import { Corridor } from "@/components/Corridor";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Plus, MoreVertical, Pencil, Pause, Play, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Pause, Play, Trash2, X } from "lucide-react";
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -113,26 +114,66 @@ export default function BudgetPage() {
 
         {/* Total Budget Card */}
         <div className="bg-panel border border-line rounded-lg p-6 mb-6">
-          <div className="flex items-end justify-between mb-4">
-            <div>
-              <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Месячный расход</div>
-              <div className="font-display text-[48px] font-medium tracking-[-0.02em]">${total.toFixed(0)}</div>
-            </div>
-            <div className="text-right">
-              <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Активных подписок</div>
-              <div className="font-display text-[24px] text-ink-2">{subs.filter(s => s.status === "active").length}</div>
-            </div>
-          </div>
-          <div className="grid grid-cols-4 gap-4">
-            {(["ai", "content", "automation", "hosting"] as const).map(cat => {
-              const catTotal = byCategory[cat] || 0;
-              return (
-                <div key={cat} className="text-center">
-                  <div className="font-mono text-[10px] text-ink-3 uppercase mb-1">{categoryLabels[cat]}</div>
-                  <div className="font-display text-xl font-medium">${catTotal.toFixed(0)}</div>
+          <div className="flex items-start gap-8">
+            {/* Left: numbers */}
+            <div className="flex-1">
+              <div className="flex items-end justify-between mb-5">
+                <div>
+                  <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Месячный расход</div>
+                  <div className="font-display text-[48px] font-medium tracking-[-0.02em]">${total.toFixed(0)}</div>
                 </div>
-              );
-            })}
+                <div className="text-right">
+                  <div className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.15em] mb-2">Активных</div>
+                  <div className="font-display text-[24px] text-ink-2">{subs.filter(s => s.status === "active").length}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                {(["ai", "content", "automation", "hosting"] as const).map(cat => {
+                  const catTotal = byCategory[cat] || 0;
+                  return (
+                    <div key={cat} className="text-center">
+                      <div className="font-mono text-[10px] text-ink-3 uppercase mb-1">{categoryLabels[cat]}</div>
+                      <div className="font-display text-xl font-medium">${catTotal.toFixed(0)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right: donut */}
+            {total > 0 && (
+              <div className="shrink-0 w-[200px]">
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "AI", value: byCategory["ai"] || 0 },
+                        { name: "Контент", value: byCategory["content"] || 0 },
+                        { name: "Автоматизация", value: byCategory["automation"] || 0 },
+                        { name: "Хостинг", value: byCategory["hosting"] || 0 },
+                        { name: "Другое", value: byCategory["other"] || 0 },
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      dataKey="value"
+                      animationBegin={0}
+                      animationDuration={800}
+                    >
+                      {["#4D9EBF","#3D9970","#f59e0b","#8892A0","#C0444A"].map((c, i) => (
+                        <Cell key={i} fill={c} opacity={0.85} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      formatter={(v: number) => [`$${v.toFixed(0)}`, ""]}
+                      contentStyle={{ background: "rgb(var(--color-panel-2))", border: "1px solid rgb(var(--color-line))", borderRadius: "8px", fontSize: "12px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         </div>
 

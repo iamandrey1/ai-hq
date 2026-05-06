@@ -20,11 +20,7 @@ export function useProjectRisks(projectId: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId) {
-      setRisks([]);
-      setLoading(false);
-      return;
-    }
+    if (!projectId) { setRisks([]); setLoading(false); return; }
 
     const supabase = createClient();
 
@@ -35,90 +31,70 @@ export function useProjectRisks(projectId: string | null) {
         .eq("project_id", projectId)
         .order("is_resolved", { ascending: true })
         .order("created_at", { ascending: true });
-
-      if (error) {
-        setError(error.message);
-      } else {
-        setRisks(data || []);
-      }
+      if (error) setError(error.message);
+      else setRisks(data || []);
       setLoading(false);
     };
 
     fetchRisks();
 
-    // Realtime subscription
     const channel = supabase
       .channel(`risks-${projectId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "project_risks", filter: `project_id=eq.${projectId}` },
-        (payload) => {
-          if (payload.eventType === "UPDATE") {
-            setRisks((prev) => {
-              const updated = prev.map((r) => (r.id === payload.new.id ? payload.new : r));
-              // Move resolved to bottom
-              return updated.sort((a, b) => {
-                if (a.is_resolved !== b.is_resolved) return a.is_resolved ? 1 : -1;
-                return 0;
-              });
-            });
-          }
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "project_risks", filter: `project_id=eq.${projectId}` }, () => fetchRisks())
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
+  }, [projectId]);
+
+  const addRisk = useCallback(async (data: {
+    title: string; description?: string; probability: Risk["probability"];
+    mitigation?: string; impact?: string;
+  }) => {
+    if (!projectId) return null;
+    const supabase = createClient();
+    const { data: result, error } = await supabase
+      .from("project_risks")
+      .insert({ ...data, project_id: projectId, is_resolved: false })
+      .select().single();
+    if (error) { setError(error.message); return null; }
+    setRisks(prev => [result as Risk, ...prev]);
+    return result as Risk;
   }, [projectId]);
 
   const resolveRisk = useCallback(async (riskId: string) => {
+    setRisks(prev => prev.map(r => r.id === riskId ? { ...r, is_resolved: true } : r)
+      .sort((a, b) => (a.is_resolved === b.is_resolved ? 0 : a.is_resolved ? 1 : -1)));
     const supabase = createClient();
-    const { error } = await supabase
-      .from("project_risks")
-      .update({ is_resolved: true })
-      .eq("id", riskId);
-
-    if (error) {
-      setError(error.message);
-      return false;
-    }
+    const { error } = await supabase.from("project_risks").update({ is_resolved: true }).eq("id", riskId);
+    if (error) { setError(error.message); return false; }
     return true;
   }, []);
 
-  const updateRisk = useCallback(async (riskId: string, updates: Partial<Pick<Risk, "title" | "description" | "mitigation">>) => {
+  const updateRisk = useCallback(async (riskId: string, updates: Partial<Pick<Risk, "title" | "description" | "mitigation" | "probability">>) => {
+    setRisks(prev => prev.map(r => r.id === riskId ? { ...r, ...updates } : r));
     const supabase = createClient();
-    const { error } = await supabase
-      .from("project_risks")
-      .update(updates)
-      .eq("id", riskId);
-
-    if (error) {
-      setError(error.message);
-      return false;
-    }
+    const { error } = await supabase.from("project_risks").update(updates).eq("id", riskId);
+    if (error) { setError(error.message); return false; }
     return true;
   }, []);
 
-  const getProbabilityColor = useCallback((probability: string) => {
-    switch (probability) {
-      case "low": return "bg-green-500";
-      case "medium": return "bg-amber-500";
-      case "high": return "bg-red-500";
-      default: return "bg-ink-3";
-    }
+  const deleteRisk = useCallback(async (riskId: string) => {
+    setRisks(prev => prev.filter(r => r.id !== riskId));
+    const supabase = createClient();
+    const { error } = await supabase.from("project_risks").delete().eq("id", riskId);
+    if (error) { setError(error.message); return false; }
+    return true;
   }, []);
 
-  const getProbabilityLabel = useCallback((probability: string) => {
-    switch (probability) {
-      case "low": return "Низкая";
-      case "medium": return "Средняя";
-      case "high": return "Высокая";
-      default: return probability;
-    }
+  const getProbabilityColor = useCallback((p: string) => {
+    return p === "low" ? "bg-green" : p === "medium" ? "bg-amber-500" : "bg-red";
   }, []);
 
-  const unresolvedRisks = risks.filter((r) => !r.is_resolved);
+  const getProbabilityLabel = useCallback((p: string) => {
+    return p === "low" ? "Низкая" : p === "medium" ? "Средняя" : p === "high" ? "Высокая" : p;
+  }, []);
 
-  return { risks, loading, error, resolveRisk, updateRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks };
+  const unresolvedRisks = risks.filter(r => !r.is_resolved);
+
+  return { risks, loading, error, addRisk, resolveRisk, updateRisk, deleteRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks };
 }

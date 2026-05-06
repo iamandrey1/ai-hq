@@ -49,5 +49,41 @@ export function useProjects() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  return { projects, loading };
+  const createProject = useCallback(async (data: {
+    name: string; slug: string; description?: string;
+    category: Project["category"]; status: Project["status"];
+    repo_url?: string; prod_url?: string;
+  }) => {
+    const { data: result, error } = await supabase
+      .from("projects")
+      .insert({ ...data, progress: 0, agents: [] })
+      .select().single();
+    if (error) { console.error("createProject:", error); return null; }
+    const p = mapRow(result as Record<string, unknown>);
+    setProjects(prev => [...prev, p]);
+    return p;
+  }, []);
+
+  const updateProject = useCallback(async (id: string, updates: Partial<Omit<Project, "id" | "created_at">>) => {
+    // optimistic
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    const { error } = await supabase.from("projects").update(updates).eq("id", id);
+    if (error) {
+      await loadProjects(); // rollback via reload
+      return false;
+    }
+    return true;
+  }, [loadProjects]);
+
+  const deleteProject = useCallback(async (id: string) => {
+    setProjects(prev => prev.filter(p => p.id !== id));
+    const { error } = await supabase.from("projects").delete().eq("id", id);
+    if (error) {
+      await loadProjects();
+      return false;
+    }
+    return true;
+  }, [loadProjects]);
+
+  return { projects, loading, createProject, updateProject, deleteProject };
 }

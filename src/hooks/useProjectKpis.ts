@@ -19,11 +19,7 @@ export function useProjectKpis(projectId: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!projectId) {
-      setKpis([]);
-      setLoading(false);
-      return;
-    }
+    if (!projectId) { setKpis([]); setLoading(false); return; }
 
     const supabase = createClient();
 
@@ -32,62 +28,48 @@ export function useProjectKpis(projectId: string | null) {
         .from("project_kpis")
         .select("*")
         .eq("project_id", projectId);
-
-      if (error) {
-        setError(error.message);
-      } else {
-        setKpis(data || []);
-      }
+      if (error) setError(error.message);
+      else setKpis(data || []);
       setLoading(false);
     };
 
     fetchKpis();
 
-    // Realtime subscription
     const channel = supabase
       .channel(`kpis-${projectId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "project_kpis", filter: `project_id=eq.${projectId}` },
-        (payload) => {
-          setKpis((prev) =>
-            prev.map((k) => (k.id === payload.new.id ? payload.new : k))
-          );
-        }
-      )
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "project_kpis", filter: `project_id=eq.${projectId}` }, (payload) => {
+        setKpis(prev => prev.map(k => k.id === payload.new.id ? payload.new as Kpi : k));
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [projectId]);
 
   const updateValue = useCallback(async (kpiId: string, newValue: number) => {
+    setKpis(prev => prev.map(k => k.id === kpiId ? { ...k, current_value: newValue } : k));
     const supabase = createClient();
-    const { error } = await supabase
-      .from("project_kpis")
-      .update({ current_value: newValue })
-      .eq("id", kpiId);
+    const { error } = await supabase.from("project_kpis").update({ current_value: newValue }).eq("id", kpiId);
+    if (error) { setError(error.message); return false; }
+    return true;
+  }, []);
 
-    if (error) {
-      setError(error.message);
-      return false;
-    }
+  const updateKpi = useCallback(async (kpiId: string, updates: Partial<Pick<Kpi, "name" | "current_value" | "target_value" | "unit" | "description">>) => {
+    setKpis(prev => prev.map(k => k.id === kpiId ? { ...k, ...updates } : k));
+    const supabase = createClient();
+    const { error } = await supabase.from("project_kpis").update(updates).eq("id", kpiId);
+    if (error) { setError(error.message); return false; }
     return true;
   }, []);
 
   const getProgress = useCallback((kpi: Kpi) => {
-    const percentage = kpi.target_value > 0
-      ? Math.round((kpi.current_value / kpi.target_value) * 100)
-      : 0;
-    return Math.min(percentage, 100);
+    return kpi.target_value > 0 ? Math.min(Math.round((kpi.current_value / kpi.target_value) * 100), 100) : 0;
   }, []);
 
-  const getProgressColor = useCallback((percentage: number) => {
-    if (percentage < 30) return "bg-red-500";
-    if (percentage < 70) return "bg-amber-500";
-    return "bg-green-500";
+  const getProgressColor = useCallback((pct: number) => {
+    if (pct < 30) return "text-red";
+    if (pct < 70) return "text-amber-400";
+    return "text-green";
   }, []);
 
-  return { kpis, loading, error, updateValue, getProgress, getProgressColor };
+  return { kpis, loading, error, updateValue, updateKpi, getProgress, getProgressColor };
 }
