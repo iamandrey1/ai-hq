@@ -80,16 +80,14 @@ export function useTasks() {
     });
 
     const supabase = createClient();
-    const payload = { ...updates, updated_at: new Date().toISOString() };
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from("tasks")
-      .update(payload, { count: "exact" })
+      .update(updates)
       .eq("id", id);
 
-    if (error || count === 0) {
+    if (error) {
       if (prev) setTasks((old) => old.map((t) => t.id === id ? prev! : t));
-      if (error) console.error("updateTask:", error);
-      else console.warn("updateTask: 0 rows updated — check RLS policy on tasks table");
+      console.error("updateTask:", error.message);
       return false;
     }
 
