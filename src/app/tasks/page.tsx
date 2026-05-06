@@ -1,13 +1,12 @@
 "use client";
 
 import { Corridor } from "@/components/Corridor";
-import { useTasks } from "@/hooks/useTasks";
+import { useTasks, type Task } from "@/hooks/useTasks";
 import { useProjects } from "@/hooks/useProjects";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Plus, MoreVertical, Pencil, Trash2, X, GripVertical } from "lucide-react";
 import { useState, useEffect, useRef, DragEvent } from "react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 
 const priorityColors: Record<string, string> = {
   low: "text-ink-3",
@@ -109,8 +108,9 @@ export default function TasksPage() {
     e.preventDefault();
     setDragOverColumn(null);
     if (draggedTask && draggedTask.status !== targetStatus) {
-      await updateTask(draggedTask.id,{ status: targetStatus });
-      toast.success(`Задача перемещена в "${statusLabels[targetStatus as keyof typeof statusLabels]}"`);
+      const ok = await updateTask(draggedTask.id, { status: targetStatus as Task["status"] });
+      if (ok) toast.success(`Задача → "${statusLabels[targetStatus as keyof typeof statusLabels]}"`);
+      else toast.error("Не удалось сохранить — проверь RLS политику на таблице tasks");
     }
     setDraggedTask(null);
   };

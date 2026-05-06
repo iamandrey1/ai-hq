@@ -73,7 +73,6 @@ export function useTasks() {
   }, []);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
-    // Optimistic: update state before waiting for DB
     let prev: Task | undefined;
     setTasks((old) => {
       prev = old.find((t) => t.id === id);
@@ -81,12 +80,16 @@ export function useTasks() {
     });
 
     const supabase = createClient();
-    const { error } = await supabase.from("tasks").update(updates).eq("id", id);
+    const payload = { ...updates, updated_at: new Date().toISOString() };
+    const { error, count } = await supabase
+      .from("tasks")
+      .update(payload, { count: "exact" })
+      .eq("id", id);
 
-    if (error) {
-      // Rollback
+    if (error || count === 0) {
       if (prev) setTasks((old) => old.map((t) => t.id === id ? prev! : t));
-      console.error("updateTask:", error);
+      if (error) console.error("updateTask:", error);
+      else console.warn("updateTask: 0 rows updated — check RLS policy on tasks table");
       return false;
     }
 

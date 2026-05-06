@@ -6,8 +6,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useProfile } from "@/hooks/useProfile";
 import { useProjects } from "@/hooks/useProjects";
-import { PulseCanvas } from "@/components/PulseCanvas";
-import { RadarCanvas } from "@/components/RadarCanvas";
 import { DollarSign, FolderKanban, CheckSquare } from "lucide-react";
 
 const categoryColors: Record<string, string> = {
@@ -174,26 +172,6 @@ export function Office() {
           ))}
         </div>
       )}
-
-      {/* Pulse + Radar */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
-        <div className="bg-panel border border-line rounded-lg p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[13px] font-semibold text-ink">Пульс системы</h2>
-            <span className="flex items-center gap-1.5 font-mono text-[9px] text-green uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 bg-green rounded-full animate-pulse-slow" />live
-            </span>
-          </div>
-          <PulseCanvas />
-        </div>
-        <div className="bg-panel border border-line rounded-lg p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[13px] font-semibold text-ink">Радар проектов</h2>
-            <span className="font-mono text-[9px] text-ink-3 uppercase tracking-wider">hover = highlight</span>
-          </div>
-          <RadarCanvas />
-        </div>
-      </div>
 
       {/* AI Agents */}
       <div className="flex items-center justify-between mb-3">
