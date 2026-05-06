@@ -72,7 +72,7 @@ export function Corridor() {
     loadProfiles();
     const supabase = createClient();
     const channel = supabase
-      .channel(`corridor-profiles-${Date.now()}`)
+      .channel(`corridor-profiles-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => loadProfiles())
       .subscribe();
 

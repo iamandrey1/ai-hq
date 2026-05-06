@@ -33,7 +33,7 @@ export function useSubscriptions() {
     load();
 
     const channel = supabase
-      .channel(`subs-rt-${Date.now()}`)
+      .channel(`subs-rt-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "subscriptions" }, (payload) => {
         const s = payload.new as Subscription;
         setSubs((prev) => prev.some((x) => x.id === s.id) ? prev : [s, ...prev]);

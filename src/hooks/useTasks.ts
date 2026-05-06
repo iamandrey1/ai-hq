@@ -35,7 +35,7 @@ export function useTasks() {
 
     // Payload-based realtime — no full reload
     const channel = supabase
-      .channel(`tasks-rt-${Date.now()}`)
+      .channel(`tasks-rt-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "tasks" }, (payload) => {
         const t = payload.new as Task;
         setTasks((prev) => prev.some((x) => x.id === t.id) ? prev : [t, ...prev]);

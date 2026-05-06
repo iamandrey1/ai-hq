@@ -40,7 +40,7 @@ export function useProjects() {
 
     const supabase = createClient(); // separate client for channel
     const channel = supabase
-      .channel(`projects-rt-${Date.now()}`)
+      .channel(`projects-rt-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, () => loadProjects())
       .subscribe();
 

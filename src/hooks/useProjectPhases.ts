@@ -93,7 +93,7 @@ export function useProjectPhases(slug: string | null) {
     };
 
     const channel = supabase
-      .channel(`phases-${projectId}-${Date.now()}`)
+      .channel(`phases-${projectId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "project_phases", filter: `project_id=eq.${projectId}` }, reload)
       .subscribe();
 

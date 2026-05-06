@@ -36,7 +36,7 @@ export function useProjectKpis(projectId: string | null) {
     fetchKpis();
 
     const channel = supabase
-      .channel(`kpis-${projectId}-${Date.now()}`)
+      .channel(`kpis-${projectId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "project_kpis", filter: `project_id=eq.${projectId}` }, (payload) => {
         setKpis(prev => prev.map(k => k.id === payload.new.id ? payload.new as Kpi : k));
       })

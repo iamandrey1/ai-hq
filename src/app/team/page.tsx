@@ -48,7 +48,7 @@ export default function TeamPage() {
     loadProfiles();
 
     const channel = supabase
-      .channel(`team-profiles-${Date.now()}`)
+      .channel(`team-profiles-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => loadProfiles())
       .subscribe();
 

@@ -50,7 +50,7 @@ export function useCustomTables(projectId: string | null) {
     load();
     const supabase = createClient();
     const channel = supabase
-      .channel(`custom-tables-${projectId}-${Date.now()}`)
+      .channel(`custom-tables-${projectId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "custom_tables", filter: projectId ? `project_id=eq.${projectId}` : undefined }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -100,7 +100,7 @@ export function useCustomTableData(tableId: string | null) {
     if (!tableId) return;
     const supabase = createClient();
     const channel = supabase
-      .channel(`custom-data-${tableId}-${Date.now()}`)
+      .channel(`custom-data-${tableId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "custom_columns", filter: `table_id=eq.${tableId}` }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "custom_rows",   filter: `table_id=eq.${tableId}` }, () => load())
       .subscribe();
