@@ -11,6 +11,7 @@ import { useProjectRisks, Risk } from "@/hooks/useProjectRisks";
 import { useProjectSteps } from "@/hooks/useProjectSteps";
 import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFileLinks";
 import { useCustomTables, useCustomTableData, CustomColumn } from "@/hooks/useCustomTable";
+import { useProjectBudget, BudgetItem } from "@/hooks/useProjectBudget";
 import { Corridor } from "@/components/Corridor";
 import { toast } from "sonner";
 import {
@@ -20,8 +21,9 @@ import {
   Clock, ChevronRight as ArrowRight,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell } from "recharts";
 
-type Tab = "overview" | "plan" | "kpi" | "risks" | "files" | "data";
+type Tab = "overview" | "plan" | "kpi" | "risks" | "budget" | "files" | "data";
 
 const categoryBadge: Record<string, string> = {
   crypto:   "bg-amber-400/10 text-amber-400",
@@ -58,10 +60,14 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const [editTitle, setEditTitle] = useState("");
   const [updatingKpi, setUpdatingKpi] = useState<Kpi | null>(null);
   const [newKpiValue, setNewKpiValue] = useState("");
-  const [kpiEditForm, setKpiEditForm] = useState({ name: "", target_value: "", unit: "" });
+  const [kpiEditForm, setKpiEditForm] = useState({ name: "", target_value: "", unit: "", description: "" });
+  const [addingKpi, setAddingKpi] = useState(false);
+  const [kpiAddForm, setKpiAddForm] = useState({ name: "", current_value: "", target_value: "100", unit: "", description: "" });
 
   const [addingRisk, setAddingRisk] = useState(false);
-  const [riskForm, setRiskForm] = useState({ title: "", probability: "medium" as Risk["probability"], mitigation: "" });
+  const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
+  const [riskForm, setRiskForm] = useState({ title: "", description: "", probability: "medium" as Risk["probability"], impact: "medium" as string, mitigation: "" });
+  const [riskEditForm, setRiskEditForm] = useState({ title: "", description: "", probability: "medium" as Risk["probability"], impact: "medium" as string, mitigation: "" });
 
   const [planEditMode, setPlanEditMode] = useState(false);
   const [addingPhase, setAddingPhase] = useState(false);
@@ -81,9 +87,10 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const resolvedId = projectId ?? project?.id ?? null;
   const { steps, toggleStep, progress: stepsProgress } = useProjectSteps(resolvedId);
   const { checklist, toggleItem, addItem, updateItem, deleteItem, progress, getByPhase } = useProjectChecklist(resolvedId);
-  const { kpis, updateValue, updateKpi, getProgress, getProgressColor } = useProjectKpis(resolvedId);
+  const { kpis, addKpi, updateValue, updateKpi, deleteKpi, getProgress, getProgressColor } = useProjectKpis(resolvedId);
   const { chartData, totalProfit } = useProjectForecast(resolvedId);
   const { risks, addRisk, resolveRisk, updateRisk, deleteRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks } = useProjectRisks(resolvedId);
+  const { items: budgetItems, loading: budgetLoading, totalBudget, totalSpent, addItem: addBudgetItem, updateItem: updateBudgetItem, deleteItem: deleteBudgetItem } = useProjectBudget(resolvedId);
 
   // Auto-expand active phase
   useEffect(() => {
@@ -153,15 +160,64 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
     if (!isNaN(tgt) && tgt > 0) updates.target_value = tgt;
     if (kpiEditForm.name.trim()) updates.name = kpiEditForm.name.trim();
     if (kpiEditForm.unit.trim() !== undefined) updates.unit = kpiEditForm.unit.trim() || null;
+    if (kpiEditForm.description.trim() !== undefined) updates.description = kpiEditForm.description.trim() || null;
     const ok = await updateKpi(updatingKpi.id, updates);
     if (ok) { toast.success("KPI обновлён"); setUpdatingKpi(null); setNewKpiValue(""); }
   };
 
+  const handleAddKpi = async () => {
+    if (!kpiAddForm.name.trim()) return;
+    const r = await addKpi({
+      name: kpiAddForm.name.trim(),
+      current_value: parseFloat(kpiAddForm.current_value) || 0,
+      target_value: parseFloat(kpiAddForm.target_value) || 100,
+      unit: kpiAddForm.unit.trim() || undefined,
+      description: kpiAddForm.description.trim() || undefined,
+    });
+    if (r) {
+      toast.success("KPI добавлен");
+      setAddingKpi(false);
+      setKpiAddForm({ name: "", current_value: "", target_value: "100", unit: "", description: "" });
+    } else {
+      toast.error("Ошибка");
+    }
+  };
+
   const handleAddRisk = async () => {
     if (!riskForm.title.trim()) return;
-    const r = await addRisk({ title: riskForm.title.trim(), probability: riskForm.probability, mitigation: riskForm.mitigation.trim() || undefined });
-    if (r) { toast.success("Риск добавлен"); setAddingRisk(false); setRiskForm({ title: "", probability: "medium", mitigation: "" }); }
+    const r = await addRisk({
+      title: riskForm.title.trim(),
+      description: riskForm.description.trim() || undefined,
+      probability: riskForm.probability,
+      impact: riskForm.impact || undefined,
+      mitigation: riskForm.mitigation.trim() || undefined,
+    });
+    if (r) { toast.success("Риск добавлен"); setAddingRisk(false); setRiskForm({ title: "", description: "", probability: "medium", impact: "medium", mitigation: "" }); }
     else toast.error("Ошибка");
+  };
+
+  const handleUpdateRisk = async () => {
+    if (!editingRisk) return;
+    const ok = await updateRisk(editingRisk.id, {
+      title: riskEditForm.title.trim(),
+      description: riskEditForm.description.trim() || null,
+      probability: riskEditForm.probability,
+      impact: riskEditForm.impact || null,
+      mitigation: riskEditForm.mitigation.trim() || null,
+    });
+    if (ok) { toast.success("Риск обновлён"); setEditingRisk(null); }
+    else toast.error("Ошибка");
+  };
+
+  const openEditRisk = (r: Risk) => {
+    setEditingRisk(r);
+    setRiskEditForm({
+      title: r.title,
+      description: r.description || "",
+      probability: r.probability,
+      impact: r.impact || "medium",
+      mitigation: r.mitigation || "",
+    });
   };
 
   const getPhaseProgress = (phaseId: string) => {
@@ -174,6 +230,7 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
     { id: "plan",     label: "План" },
     { id: "kpi",      label: "KPI" },
     { id: "risks",    label: "Риски" },
+    { id: "budget",   label: "Бюджет" },
     { id: "files",    label: "Файлы" },
     { id: "data",     label: "Данные" },
   ];
@@ -637,15 +694,37 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
           {/* ── KPI ── */}
           {tab === "kpi" && (
             <div className="space-y-6">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setAddingKpi(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors"
+                >
+                  <Plus size={13} />Добавить KPI
+                </button>
+              </div>
+
+              {kpis.length === 0 && !addingKpi && (
+                <div className="text-center py-12 text-ink-3 text-sm">
+                  KPI не добавлены. Нажмите «Добавить KPI».
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 {kpis.map(kpi => {
                   const prog = getProgress(kpi);
-                  const barColor = getProgressColor(prog);
                   return (
-                    <div key={kpi.id} className="bg-panel border border-line rounded-lg p-5">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-[12px] text-ink-3">{kpi.name}</span>
-                        {kpi.description && <KpiTooltip text={kpi.description} />}
+                    <div key={kpi.id} className="bg-panel border border-line rounded-lg p-5 group">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[12px] text-ink-3">{kpi.name}</span>
+                          {kpi.description && <KpiTooltip text={kpi.description} />}
+                        </div>
+                        <button
+                          onClick={() => deleteKpi(kpi.id).then(ok => ok && toast.success("KPI удалён"))}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-ink-3 hover:text-red transition-all"
+                        >
+                          <Trash2 size={12} />
+                        </button>
                       </div>
                       <div className="text-[22px] font-semibold text-ink mb-1">
                         {kpi.current_value.toLocaleString()}
@@ -670,7 +749,7 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                         onClick={() => {
                           setUpdatingKpi(kpi);
                           setNewKpiValue(kpi.current_value.toString());
-                          setKpiEditForm({ name: kpi.name, target_value: kpi.target_value.toString(), unit: kpi.unit || "" });
+                          setKpiEditForm({ name: kpi.name, target_value: kpi.target_value.toString(), unit: kpi.unit || "", description: kpi.description || "" });
                         }}
                         className="text-[12px] text-accent hover:text-accent-2 transition-colors"
                       >
@@ -681,10 +760,63 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                 })}
               </div>
 
+              {/* KPI add form */}
+              {addingKpi && (
+                <div className="bg-panel border border-accent/30 rounded-lg p-4 space-y-3">
+                  <div className="text-[13px] font-medium text-ink">Новый KPI</div>
+                  <div>
+                    <label className="text-[11px] text-ink-3 mb-1 block">Название *</label>
+                    <input
+                      value={kpiAddForm.name}
+                      onChange={e => setKpiAddForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Например: MAU, Доход, Конверсия"
+                      className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[11px] text-ink-3 mb-1 block">Текущее</label>
+                      <input type="number" value={kpiAddForm.current_value} onChange={e => setKpiAddForm(f => ({ ...f, current_value: e.target.value }))}
+                        placeholder="0"
+                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-ink-3 mb-1 block">Цель</label>
+                      <input type="number" value={kpiAddForm.target_value} onChange={e => setKpiAddForm(f => ({ ...f, target_value: e.target.value }))}
+                        placeholder="100"
+                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-ink-3 mb-1 block">Единица</label>
+                      <input value={kpiAddForm.unit} onChange={e => setKpiAddForm(f => ({ ...f, unit: e.target.value }))}
+                        placeholder="%  /  $  /  шт"
+                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-ink-3 mb-1 block">Подсказка (tooltip)</label>
+                    <input value={kpiAddForm.description} onChange={e => setKpiAddForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="Описание метрики для tooltip"
+                      className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setAddingKpi(false); setKpiAddForm({ name: "", current_value: "", target_value: "100", unit: "", description: "" }); }}
+                      className="flex-1 px-3 py-1.5 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">
+                      Отмена
+                    </button>
+                    <button onClick={handleAddKpi}
+                      className="flex-1 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">
+                      Добавить
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* KPI edit modal */}
               {updatingKpi && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                  <div className="bg-panel border border-line rounded-lg p-5 w-[340px]">
+                  <div className="bg-panel border border-line rounded-lg p-5 w-[360px]">
                     <div className="flex items-center justify-between mb-4">
                       <div className="text-[14px] font-semibold text-ink">Редактировать KPI</div>
                       <button onClick={() => setUpdatingKpi(null)} className="text-ink-3 hover:text-ink"><X size={14} /></button>
@@ -712,6 +844,12 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                         <label className="text-[11px] text-ink-3 mb-1 block">Единица измерения</label>
                         <input value={kpiEditForm.unit} onChange={e => setKpiEditForm(f => ({ ...f, unit: e.target.value }))}
                           placeholder="%  /  $  /  шт"
+                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-ink-3 mb-1 block">Подсказка (tooltip)</label>
+                        <input value={kpiEditForm.description} onChange={e => setKpiEditForm(f => ({ ...f, description: e.target.value }))}
+                          placeholder="Описание метрики"
                           className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
                       </div>
                     </div>
@@ -799,9 +937,17 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                         <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded text-white ${getProbabilityColor(risk.probability)}`}>
                           {getProbabilityLabel(risk.probability)}
                         </span>
+                        {risk.impact && (
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-panel-2 text-ink-3">
+                            Влияние: {risk.impact === "low" ? "Низкое" : risk.impact === "medium" ? "Среднее" : "Высокое"}
+                          </span>
+                        )}
                       </div>
+                      {risk.description && (
+                        <div className="text-[12px] text-ink-3 mb-0.5">{risk.description}</div>
+                      )}
                       {risk.mitigation && (
-                        <div className="text-[12px] text-ink-3">{risk.mitigation}</div>
+                        <div className="text-[12px] text-ink-2">→ {risk.mitigation}</div>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -813,6 +959,12 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                           Решён
                         </button>
                       )}
+                      <button
+                        onClick={() => openEditRisk(risk)}
+                        className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-ink transition-all"
+                      >
+                        <Pencil size={12} />
+                      </button>
                       <button
                         onClick={() => deleteRisk(risk.id).then(ok => ok && toast.success("Удалено"))}
                         className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-red transition-all"
@@ -835,25 +987,46 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                     className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
                     autoFocus
                   />
+                  <input
+                    value={riskForm.description}
+                    onChange={e => setRiskForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Описание (опционально)"
+                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                  />
                   <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={riskForm.probability}
-                      onChange={e => setRiskForm(f => ({ ...f, probability: e.target.value as Risk["probability"] }))}
-                      className="bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                    >
-                      <option value="low">Низкая</option>
-                      <option value="medium">Средняя</option>
-                      <option value="high">Высокая</option>
-                    </select>
-                    <input
-                      value={riskForm.mitigation}
-                      onChange={e => setRiskForm(f => ({ ...f, mitigation: e.target.value }))}
-                      placeholder="Митигация (опционально)"
-                      className="bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                    />
+                    <div>
+                      <label className="text-[11px] text-ink-3 mb-1 block">Вероятность</label>
+                      <select
+                        value={riskForm.probability}
+                        onChange={e => setRiskForm(f => ({ ...f, probability: e.target.value as Risk["probability"] }))}
+                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                      >
+                        <option value="low">Низкая</option>
+                        <option value="medium">Средняя</option>
+                        <option value="high">Высокая</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-ink-3 mb-1 block">Влияние</label>
+                      <select
+                        value={riskForm.impact}
+                        onChange={e => setRiskForm(f => ({ ...f, impact: e.target.value }))}
+                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                      >
+                        <option value="low">Низкое</option>
+                        <option value="medium">Среднее</option>
+                        <option value="high">Высокое</option>
+                      </select>
+                    </div>
                   </div>
+                  <input
+                    value={riskForm.mitigation}
+                    onChange={e => setRiskForm(f => ({ ...f, mitigation: e.target.value }))}
+                    placeholder="Митигация / план действий"
+                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+                  />
                   <div className="flex gap-2">
-                    <button onClick={() => { setAddingRisk(false); setRiskForm({ title: "", probability: "medium", mitigation: "" }); }}
+                    <button onClick={() => { setAddingRisk(false); setRiskForm({ title: "", description: "", probability: "medium", impact: "medium", mitigation: "" }); }}
                       className="flex-1 px-3 py-1.5 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">
                       Отмена
                     </button>
@@ -864,7 +1037,74 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                   </div>
                 </div>
               )}
+
+              {/* Edit risk modal */}
+              {editingRisk && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                  <div className="bg-panel border border-line rounded-lg p-5 w-[400px]">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-[14px] font-semibold text-ink">Редактировать риск</div>
+                      <button onClick={() => setEditingRisk(null)} className="text-ink-3 hover:text-ink"><X size={14} /></button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[11px] text-ink-3 mb-1 block">Название</label>
+                        <input value={riskEditForm.title} onChange={e => setRiskEditForm(f => ({ ...f, title: e.target.value }))}
+                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" autoFocus />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-ink-3 mb-1 block">Описание</label>
+                        <input value={riskEditForm.description} onChange={e => setRiskEditForm(f => ({ ...f, description: e.target.value }))}
+                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[11px] text-ink-3 mb-1 block">Вероятность</label>
+                          <select value={riskEditForm.probability} onChange={e => setRiskEditForm(f => ({ ...f, probability: e.target.value as Risk["probability"] }))}
+                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50">
+                            <option value="low">Низкая</option>
+                            <option value="medium">Средняя</option>
+                            <option value="high">Высокая</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-ink-3 mb-1 block">Влияние</label>
+                          <select value={riskEditForm.impact} onChange={e => setRiskEditForm(f => ({ ...f, impact: e.target.value }))}
+                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50">
+                            <option value="low">Низкое</option>
+                            <option value="medium">Среднее</option>
+                            <option value="high">Высокое</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-ink-3 mb-1 block">Митигация</label>
+                        <input value={riskEditForm.mitigation} onChange={e => setRiskEditForm(f => ({ ...f, mitigation: e.target.value }))}
+                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button onClick={() => setEditingRisk(null)} className="flex-1 px-3 py-2 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">Отмена</button>
+                      <button onClick={handleUpdateRisk} className="flex-1 px-3 py-2 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">Сохранить</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+
+          {/* ── BUDGET ── */}
+          {tab === "budget" && project && (
+            <BudgetTab
+              projectId={project.id}
+              items={budgetItems}
+              loading={budgetLoading}
+              totalBudget={totalBudget}
+              totalSpent={totalSpent}
+              onAdd={addBudgetItem}
+              onUpdate={updateBudgetItem}
+              onDelete={deleteBudgetItem}
+            />
           )}
 
           {/* ── FILES ── */}
@@ -993,6 +1233,276 @@ function StatCard({ label, value, accent, danger, small }: {
       }`}>
         {value}
       </div>
+    </div>
+  );
+}
+
+// ── BudgetTab ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_COLORS = ["#4D9EBF", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
+interface BudgetTabProps {
+  projectId: string;
+  items: BudgetItem[];
+  loading: boolean;
+  totalBudget: number;
+  totalSpent: number;
+  onAdd: (data: { category: string; amount: number; spent?: number; color?: string }) => Promise<BudgetItem | null>;
+  onUpdate: (id: string, updates: Partial<Pick<BudgetItem, "category" | "amount" | "spent" | "color">>) => Promise<boolean>;
+  onDelete: (id: string) => Promise<boolean>;
+}
+
+function BudgetTab({ projectId, items, loading, totalBudget, totalSpent, onAdd, onUpdate, onDelete }: BudgetTabProps) {
+  const [addingItem, setAddingItem] = useState(false);
+  const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
+  const [form, setForm] = useState({ category: "", amount: "", spent: "", color: DEFAULT_COLORS[0] });
+  const [editForm, setEditForm] = useState({ category: "", amount: "", spent: "", color: "" });
+
+  const handleAdd = async () => {
+    if (!form.category.trim()) return;
+    const r = await onAdd({
+      category: form.category.trim(),
+      amount: parseFloat(form.amount) || 0,
+      spent: parseFloat(form.spent) || 0,
+      color: form.color,
+    });
+    if (r) {
+      toast.success("Статья добавлена");
+      setAddingItem(false);
+      setForm({ category: "", amount: "", spent: "", color: DEFAULT_COLORS[0] });
+    } else {
+      toast.error("Ошибка");
+    }
+  };
+
+  const openEdit = (item: BudgetItem) => {
+    setEditingItem(item);
+    setEditForm({ category: item.category, amount: String(item.amount), spent: String(item.spent), color: item.color });
+  };
+
+  const handleUpdate = async () => {
+    if (!editingItem) return;
+    const ok = await onUpdate(editingItem.id, {
+      category: editForm.category.trim(),
+      amount: parseFloat(editForm.amount) || 0,
+      spent: parseFloat(editForm.spent) || 0,
+      color: editForm.color,
+    });
+    if (ok) { toast.success("Обновлено"); setEditingItem(null); }
+    else toast.error("Ошибка");
+  };
+
+  const pieData = items.filter(i => i.amount > 0).map(i => ({ name: i.category, value: Number(i.amount), fill: i.color }));
+  const remaining = totalBudget - totalSpent;
+  const pct = totalBudget > 0 ? Math.min(Math.round((totalSpent / totalBudget) * 100), 100) : 0;
+
+  if (loading) return <div className="text-ink-3 text-sm text-center py-8">Загрузка...</div>;
+
+  return (
+    <div className="space-y-5">
+      {/* Summary cards */}
+      {items.length > 0 && (
+        <div className="bg-panel border border-line rounded-lg p-5">
+          <div className="flex items-start gap-8">
+            <div className="flex-1">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                  <div className="text-[11px] text-ink-3 mb-1">Бюджет</div>
+                  <div className="text-[22px] font-semibold text-ink">${totalBudget.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-ink-3 mb-1">Потрачено</div>
+                  <div className={`text-[22px] font-semibold ${pct > 90 ? "text-red" : pct > 70 ? "text-amber-400" : "text-green"}`}>
+                    ${totalSpent.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-ink-3 mb-1">Остаток</div>
+                  <div className={`text-[22px] font-semibold ${remaining < 0 ? "text-red" : "text-ink"}`}>
+                    ${remaining.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              <div className="h-[4px] bg-line rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${pct}%`,
+                    background: pct > 90 ? "rgb(var(--color-red))" : pct > 70 ? "#f59e0b" : "rgb(var(--color-accent))",
+                  }}
+                />
+              </div>
+              <div className="text-[11px] text-ink-3 mt-1">{pct}% использовано</div>
+            </div>
+            {pieData.length > 0 && (
+              <div className="shrink-0">
+                <PieChart width={140} height={140}>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={38} outerRadius={60} paddingAngle={2} dataKey="value">
+                    {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} opacity={0.9} />)}
+                  </Pie>
+                </PieChart>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          onClick={() => setAddingItem(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors"
+        >
+          <Plus size={13} />Добавить статью
+        </button>
+      </div>
+
+      {items.length === 0 && !addingItem && (
+        <div className="text-center py-12 text-ink-3 text-sm">
+          Бюджет не заполнен. Нажмите «Добавить статью».
+        </div>
+      )}
+
+      {/* Budget items table */}
+      {items.length > 0 && (
+        <div className="bg-panel border border-line rounded-lg overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="border-b border-line">
+                <th className="px-4 py-2.5 text-left text-[11px] font-mono text-ink-3 uppercase">Категория</th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-mono text-ink-3 uppercase">Бюджет</th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-mono text-ink-3 uppercase">Потрачено</th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-mono text-ink-3 uppercase">%</th>
+                <th className="px-4 py-2.5 w-16" />
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(item => {
+                const used = item.amount > 0 ? Math.round((Number(item.spent) / Number(item.amount)) * 100) : 0;
+                return (
+                  <tr key={item.id} className="border-b border-line/50 last:border-0 hover:bg-panel-2/40 group">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                        <span className="text-ink font-medium">{item.category}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">${Number(item.amount).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-mono">${Number(item.spent).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-mono text-[11px] ${used > 90 ? "text-red" : used > 70 ? "text-amber-400" : "text-green"}`}>
+                        {used}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                        <button onClick={() => openEdit(item)} className="p-1 text-ink-3 hover:text-ink">
+                          <Pencil size={12} />
+                        </button>
+                        <button onClick={() => onDelete(item.id).then(ok => ok && toast.success("Удалено"))} className="p-1 text-ink-3 hover:text-red">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add form */}
+      {addingItem && (
+        <div className="bg-panel border border-accent/30 rounded-lg p-4 space-y-3">
+          <div className="text-[13px] font-medium text-ink">Новая статья бюджета</div>
+          <div>
+            <label className="text-[11px] text-ink-3 mb-1 block">Категория *</label>
+            <input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+              placeholder="Разработка, Маркетинг, Инфраструктура..."
+              className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
+              autoFocus />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[11px] text-ink-3 mb-1 block">Бюджет ($)</label>
+              <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="0"
+                className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+            </div>
+            <div>
+              <label className="text-[11px] text-ink-3 mb-1 block">Потрачено ($)</label>
+              <input type="number" value={form.spent} onChange={e => setForm(f => ({ ...f, spent: e.target.value }))}
+                placeholder="0"
+                className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+            </div>
+            <div>
+              <label className="text-[11px] text-ink-3 mb-1 block">Цвет</label>
+              <div className="flex gap-1 flex-wrap">
+                {DEFAULT_COLORS.slice(0, 6).map(c => (
+                  <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
+                    className={`w-5 h-5 rounded-full transition-all ${form.color === c ? "ring-2 ring-offset-1 ring-accent scale-110" : ""}`}
+                    style={{ backgroundColor: c }} />
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { setAddingItem(false); setForm({ category: "", amount: "", spent: "", color: DEFAULT_COLORS[0] }); }}
+              className="flex-1 px-3 py-1.5 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">
+              Отмена
+            </button>
+            <button onClick={handleAdd}
+              className="flex-1 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">
+              Добавить
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-panel border border-line rounded-lg p-5 w-[380px]">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[14px] font-semibold text-ink">Редактировать статью</div>
+              <button onClick={() => setEditingItem(null)} className="text-ink-3 hover:text-ink"><X size={14} /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] text-ink-3 mb-1 block">Категория</label>
+                <input value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                  className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" autoFocus />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] text-ink-3 mb-1 block">Бюджет ($)</label>
+                  <input type="number" value={editForm.amount} onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                </div>
+                <div>
+                  <label className="text-[11px] text-ink-3 mb-1 block">Потрачено ($)</label>
+                  <input type="number" value={editForm.spent} onChange={e => setEditForm(f => ({ ...f, spent: e.target.value }))}
+                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-ink-3 mb-1 block">Цвет</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {DEFAULT_COLORS.map(c => (
+                    <button key={c} onClick={() => setEditForm(f => ({ ...f, color: c }))}
+                      className={`w-5 h-5 rounded-full transition-all ${editForm.color === c ? "ring-2 ring-offset-1 ring-accent scale-110" : ""}`}
+                      style={{ backgroundColor: c }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setEditingItem(null)} className="flex-1 px-3 py-2 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">Отмена</button>
+              <button onClick={handleUpdate} className="flex-1 px-3 py-2 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">Сохранить</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

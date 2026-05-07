@@ -70,7 +70,7 @@ export function useProjectRisks(projectId: string | null) {
     return true;
   }, []);
 
-  const updateRisk = useCallback(async (riskId: string, updates: Partial<Pick<Risk, "title" | "description" | "mitigation" | "probability">>) => {
+  const updateRisk = useCallback(async (riskId: string, updates: Partial<Pick<Risk, "title" | "description" | "mitigation" | "probability" | "impact">>) => {
     setRisks(prev => prev.map(r => r.id === riskId ? { ...r, ...updates } : r));
     const supabase = createClient();
     const { error } = await supabase.from("project_risks").update(updates).eq("id", riskId);
