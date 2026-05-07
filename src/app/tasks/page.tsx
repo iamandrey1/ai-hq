@@ -70,10 +70,18 @@ export default function TasksPage() {
       return;
     }
     if (editingTask?.id) {
-      await updateTask(editingTask.id, form as Parameters<typeof updateTask>[1]);
+      const ok = await updateTask(editingTask.id, form as Parameters<typeof updateTask>[1]);
+      if (!ok) {
+        toast.error("Не удалось обновить задачу — проверь консоль и RLS");
+        return;
+      }
       toast.success("Задача обновлена");
     } else {
-      await createTask(form as Parameters<typeof createTask>[0]);
+      const ok = await createTask(form as Parameters<typeof createTask>[0]);
+      if (!ok) {
+        toast.error("Не удалось создать задачу — проверь консоль и RLS");
+        return;
+      }
       toast.success("Задача создана");
     }
     setModalOpen(false);

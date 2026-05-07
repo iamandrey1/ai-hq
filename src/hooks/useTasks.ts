@@ -55,8 +55,19 @@ export function useTasks() {
 
   const createTask = useCallback(async (task: Omit<Task, "id" | "created_at" | "updated_at">) => {
     const supabase = createClient();
-    const { data, error } = await supabase.from("tasks").insert(task).select().single();
-    if (error) { console.error("createTask:", error); return false; }
+    // Empty string for uuid column → "invalid input syntax" — normalize to null
+    const payload = {
+      title: task.title,
+      description: task.description || null,
+      project_id: task.project_id || null,
+      status: task.status || "todo",
+      priority: task.priority || "medium",
+    };
+    const { data, error } = await supabase.from("tasks").insert(payload).select().single();
+    if (error) {
+      console.error("createTask:", error.message, error.code, error.details);
+      return false;
+    }
     // Add immediately (realtime will deduplicate)
     setTasks((prev) => {
       const t = data as Task;
@@ -65,7 +76,7 @@ export function useTasks() {
     logActivity({
       action_type: "task_created",
       description: `Создал задачу: ${task.title}`,
-      project_id: task.project_id,
+      project_id: payload.project_id || undefined,
       entity_type: "task",
       entity_id: data?.id,
     });
@@ -77,7 +88,15 @@ export function useTasks() {
     const allowed = ["title", "description", "project_id", "status", "priority"] as const;
     const sanitized: Record<string, unknown> = {};
     for (const key of allowed) {
-      if (key in updates) sanitized[key] = updates[key as keyof typeof updates];
+      if (key in updates) {
+        const value = updates[key as keyof typeof updates];
+        // Empty string for uuid column → "invalid input syntax" — normalize to null
+        if (key === "project_id" && value === "") {
+          sanitized[key] = null;
+        } else {
+          sanitized[key] = value;
+        }
+      }
     }
 
     let prev: Task | undefined;

@@ -66,21 +66,27 @@ export function useActivityLog(options?: { projectId?: string; limit?: number })
     const channel = supabase
       .channel(`activity-log-rt-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, async (payload) => {
-        // Fetch the new entry with joins so we have profile/project names
-        const { data } = await supabase
+        const newRow = payload.new as Record<string, unknown>;
+        // Fetch the new entry with joins so we have profile/project names.
+        // Если RLS на profiles запретит join — упадём на сырой payload.
+        const { data, error } = await supabase
           .from("activity_log")
           .select("*, profiles(full_name, initials), projects(name, slug)")
-          .eq("id", payload.new.id)
-          .single();
-        if (data) {
-          const entry = {
-            ...data,
-            profile: (data.profiles as { full_name: string; initials: string }) || undefined,
-            project: (data.projects as { name: string; slug: string }) || undefined,
-          } as ActivityEntry;
-          if (!options?.projectId || entry.project_id === options.projectId) {
-            setEntries((prev) => [entry, ...prev].slice(0, pageSize * (page + 1)));
-          }
+          .eq("id", newRow.id as string)
+          .maybeSingle();
+        const base = (data || newRow) as Record<string, unknown>;
+        if (error) console.warn("activity_log realtime select:", error.message);
+        const entry = {
+          ...base,
+          profile: (base.profiles as { full_name: string; initials: string }) || undefined,
+          project: (base.projects as { name: string; slug: string }) || undefined,
+        } as ActivityEntry;
+        if (!options?.projectId || entry.project_id === options.projectId) {
+          setEntries((prev) =>
+            prev.some((e) => e.id === entry.id)
+              ? prev
+              : [entry, ...prev].slice(0, pageSize * (page + 1))
+          );
         }
       })
       .subscribe();
@@ -105,9 +111,12 @@ export async function logActivity(params: {
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.warn("logActivity: no user — skipping");
+      return;
+    }
 
-    await supabase.from("activity_log").insert({
+    const { error } = await supabase.from("activity_log").insert({
       user_id: user.id,
       action_type: params.action_type,
       description: params.description,
@@ -116,5 +125,11 @@ export async function logActivity(params: {
       entity_id: params.entity_id || null,
       metadata: params.metadata || null,
     });
-  } catch {}
+    if (error) {
+      // Не молчим: часто либо RLS блокирует, либо колонка отсутствует.
+      console.error("logActivity:", error.message, error.code, error.details);
+    }
+  } catch (e) {
+    console.error("logActivity exception:", e);
+  }
 }

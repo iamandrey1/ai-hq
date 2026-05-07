@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
-import { isOnline } from "@/lib/utils";
+import { useOnlinePresence } from "@/hooks/useOnlinePresence";
 import type { Profile } from "@/types/index";
 
 const agentColors: Record<string, string> = {
@@ -34,6 +34,7 @@ const statusColors: Record<string, string> = {
 export default function TeamPage() {
   const { agents } = useStore();
   const { profile: currentUser } = useProfile();
+  const { onlineIds } = useOnlinePresence();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -136,7 +137,7 @@ export default function TeamPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {isOnline(p.last_seen) ? (
+                  {onlineIds.includes(p.id) ? (
                     <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-1 rounded bg-green/10 text-green">
                       <span className="w-1.5 h-1.5 bg-green rounded-full" />
                       Online

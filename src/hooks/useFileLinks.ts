@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/hooks/useActivityLog";
 
 export interface FileLink {
   id: string;
@@ -92,28 +93,88 @@ export function useFileLinks(projectId?: string | null) {
     tags?: string[];
   }) => {
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("file_links").insert({
+    const insertPayload = {
       title: data.title,
       url: data.url,
       icon_type: getIconType(data.url),
       project_id: data.project_id || null,
       tags: data.tags || [],
       added_by: user?.id || null,
+    };
+    const { data: row, error } = await supabase
+      .from("file_links")
+      .insert(insertPayload)
+      .select("*, profiles(full_name), projects(name, slug)")
+      .single();
+    if (error || !row) {
+      console.error("addFile:", error?.message, error?.code, error?.details);
+      return false;
+    }
+    const r = row as Record<string, unknown>;
+    const enriched: FileLink = {
+      ...(r as unknown as FileLink),
+      profile: (r.profiles as { full_name: string }) || undefined,
+      project: (r.projects as { name: string; slug: string }) || undefined,
+    };
+    // Optimistic insert; realtime will dedupe by id
+    setFiles((prev) => prev.some((f) => f.id === enriched.id) ? prev : [enriched, ...prev]);
+    logActivity({
+      action_type: "file_added",
+      description: `Добавил файл: ${data.title}`,
+      project_id: insertPayload.project_id || undefined,
+      entity_type: "file_link",
+      entity_id: enriched.id,
     });
-    return !error;
+    return true;
   }, []);
 
   const updateFile = useCallback(async (id: string, updates: Partial<Pick<FileLink, "title" | "url" | "tags" | "project_id">>) => {
     const patch: Record<string, unknown> = { ...updates };
     if (updates.url) patch.icon_type = getIconType(updates.url);
+    if ("project_id" in patch && patch.project_id === "") patch.project_id = null;
     patch.updated_at = new Date().toISOString();
-    const { error } = await supabase.from("file_links").update(patch).eq("id", id);
-    return !error;
+    const { data, error } = await supabase
+      .from("file_links")
+      .update(patch)
+      .eq("id", id)
+      .select("*, profiles(full_name), projects(name, slug)")
+      .single();
+    if (error || !data) {
+      console.error("updateFile:", error?.message);
+      return false;
+    }
+    const d = data as Record<string, unknown>;
+    const enriched: FileLink = {
+      ...(d as unknown as FileLink),
+      profile: (d.profiles as { full_name: string }) || undefined,
+      project: (d.projects as { name: string; slug: string }) || undefined,
+    };
+    setFiles((prev) => prev.map((f) => f.id === id ? enriched : f));
+    return true;
   }, []);
 
   const deleteFile = useCallback(async (id: string) => {
+    let removed: FileLink | undefined;
+    setFiles((prev) => {
+      removed = prev.find((f) => f.id === id);
+      return prev.filter((f) => f.id !== id);
+    });
     const { error } = await supabase.from("file_links").delete().eq("id", id);
-    return !error;
+    if (error) {
+      if (removed) setFiles((prev) => [removed!, ...prev]);
+      console.error("deleteFile:", error.message);
+      return false;
+    }
+    if (removed) {
+      logActivity({
+        action_type: "file_deleted",
+        description: `Удалил файл: ${removed.title}`,
+        project_id: removed.project_id || undefined,
+        entity_type: "file_link",
+        entity_id: id,
+      });
+    }
+    return true;
   }, []);
 
   return { files, loading, addFile, updateFile, deleteFile };
