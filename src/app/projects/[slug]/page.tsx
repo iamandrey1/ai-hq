@@ -13,6 +13,7 @@ import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFil
 import { useCustomTables, useCustomTableData, CustomColumn } from "@/hooks/useCustomTable";
 import { useProjectBudget, BudgetItem } from "@/hooks/useProjectBudget";
 import { AppShell } from "@/components/layout/AppShell";
+import { CommentsPanel } from "@/components/comments";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { KpiTab } from "./tabs/KpiTab";
 import { RisksTab } from "./tabs/RisksTab";
@@ -104,15 +105,33 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const { risks, addRisk, resolveRisk, updateRisk, deleteRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks } = useProjectRisks(resolvedId);
   const { items: budgetItems, loading: budgetLoading, totalBudget, totalSpent, addItem: addBudgetItem, updateItem: updateBudgetItem, deleteItem: deleteBudgetItem } = useProjectBudget(resolvedId);
 
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Обзор" },
-    { id: "plan",     label: "План" },
-    { id: "kpi",      label: "KPI" },
-    { id: "risks",    label: "Риски" },
-    { id: "budget",   label: "Бюджет" },
+    { id: "plan",     label: "План",   count: checklist.length },
+    { id: "kpi",      label: "KPI",    count: kpis.length },
+    { id: "risks",    label: "Риски",  count: unresolvedRisks.length },
+    { id: "budget",   label: "Бюджет", count: budgetItems.length },
     { id: "files",    label: "Файлы" },
     { id: "data",     label: "Данные" },
   ];
+
+  // Deterministic icon-badge palette per project
+  const palette = [
+    "from-accent to-[#2E7AA0]",
+    "from-purple-400 to-[#7C5DD8]",
+    "from-green to-[#16A34A]",
+    "from-pink-400 to-[#DB2777]",
+    "from-amber-400 to-[#D97706]",
+  ];
+  const projectInitials = (name: string) => {
+    const words = name.trim().split(/\s+/).slice(0, 2);
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  };
+  const paletteIndex = project ? Math.abs(
+    project.id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  ) % palette.length : 0;
+  const projectGradient = palette[paletteIndex];
 
   if (!project && projects.length > 0) {
     return (
@@ -147,19 +166,24 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
           </Link>
 
           <div className="flex items-start justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${categoryBadge[project.category] || categoryBadge.other}`}>
-                  {project.category.toUpperCase()}
-                </span>
-                <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${statusBadge[project.status] || statusBadge.active}`}>
-                  {statusLabel[project.status] || project.status}
-                </span>
+            <div className="flex items-start gap-3.5">
+              <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${projectGradient} grid place-items-center text-[13px] font-bold text-white shrink-0`}>
+                {projectInitials(project.name)}
               </div>
-              <h1 className="text-[24px] font-semibold tracking-tight text-ink">{project.name}</h1>
-              {project.description && (
-                <p className="text-sm text-ink-3 mt-1">{project.description}</p>
-              )}
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${categoryBadge[project.category] || categoryBadge.other}`}>
+                    {project.category.toUpperCase()}
+                  </span>
+                  <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${statusBadge[project.status] || statusBadge.active}`}>
+                    {statusLabel[project.status] || project.status}
+                  </span>
+                </div>
+                <h1 className="text-[22px] font-semibold tracking-tight text-ink leading-tight">{project.name}</h1>
+                {project.description && (
+                  <p className="text-sm text-ink-3 mt-1">{project.description}</p>
+                )}
+              </div>
             </div>
             <div className="flex gap-2">
               {project.repo_url && (
@@ -202,16 +226,19 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto">
             {tabs.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`px-3 py-2.5 text-[13px] font-medium transition-colors relative ${
+                className={`px-3 py-2.5 text-[13px] font-medium transition-colors relative whitespace-nowrap ${
                   tab === t.id ? "text-ink" : "text-ink-3 hover:text-ink-2"
                 }`}
               >
                 {t.label}
+                {typeof t.count === "number" && t.count > 0 && (
+                  <span className="ml-1.5 font-mono text-[10px] text-ink-3">{t.count}</span>
+                )}
                 {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-px bg-accent" />}
               </button>
             ))}
@@ -223,16 +250,38 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
           {/* ── OVERVIEW ── */}
           {tab === "overview" && (
-            <OverviewTab
-              progress={progress}
-              phases={phases}
-              unresolvedRisks={unresolvedRisks}
-              getProbabilityColor={getProbabilityColor}
-              aiSummary={aiSummary}
-              aiSummaryLoading={aiSummaryLoading}
-              refreshAiSummary={refreshAiSummary}
-              projectId={project.id}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+              <div>
+                <OverviewTab
+                  progress={progress}
+                  phases={phases}
+                  unresolvedRisks={unresolvedRisks}
+                  getProbabilityColor={getProbabilityColor}
+                  aiSummary={aiSummary}
+                  aiSummaryLoading={aiSummaryLoading}
+                  refreshAiSummary={refreshAiSummary}
+                  projectId={project.id}
+                />
+              </div>
+              <aside className="hidden lg:block sticky top-4 self-start">
+                {unresolvedRisks.length > 0 ? (
+                  <CommentsPanel
+                    table="risk_comments"
+                    parentColumn="risk_id"
+                    parentId={unresolvedRisks[0].id}
+                    title="Обсуждение"
+                    subtitle={`Risk · ${unresolvedRisks[0].title}`}
+                  />
+                ) : (
+                  <div className="bg-panel border border-line rounded-lg p-5 text-center">
+                    <div className="text-[13px] text-ink-2 font-medium mb-1">Нет открытых рисков</div>
+                    <div className="text-[11px] text-ink-3">
+                      Когда появится риск — здесь откроется обсуждение по нему.
+                    </div>
+                  </div>
+                )}
+              </aside>
+            </div>
           )}
 
           {/* ── PLAN ── */}

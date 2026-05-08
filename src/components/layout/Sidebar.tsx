@@ -136,8 +136,8 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4">
-        <div className="font-mono text-[9px] text-ink-3 tracking-[0.18em] uppercase px-5 mb-1.5">
-          Кабинеты
+        <div className="font-mono text-[10px] font-medium text-ink-3 tracking-[0.18em] uppercase px-5 mb-1.5">
+          Workspace
         </div>
 
         {navItems.map((item) => {
@@ -174,8 +174,8 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           );
         })}
 
-        <div className="font-mono text-[9px] text-ink-3 tracking-[0.18em] uppercase px-5 mb-1.5 mt-5">
-          Финансы
+        <div className="font-mono text-[10px] font-medium text-ink-3 tracking-[0.18em] uppercase px-5 mb-1.5 mt-5">
+          Finance
         </div>
 
         {financeItems.map((item) => {
