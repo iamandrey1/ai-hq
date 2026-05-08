@@ -17,15 +17,18 @@ export interface ActivityEntry {
 }
 
 export const ACTION_LABELS: Record<string, string> = {
+  project_created:     "добавил проект",
+  project_deleted:     "удалил проект",
+  task_created:        "добавил задачу",
+  task_done:           "выполнил задачу",
+  task_deleted:        "удалил задачу",
+  file_added:          "добавил документ",
+  file_deleted:        "удалил документ",
   checklist_done:      "выполнил пункт",
   checklist_undone:    "отменил пункт",
-  task_created:        "создал задачу",
-  task_done:           "закрыл задачу",
-  task_deleted:        "удалил задачу",
   subscription_added:  "добавил подписку",
   subscription_deleted:"удалил подписку",
-  file_added:          "добавил файл",
-  file_deleted:        "удалил файл",
+  step_completed:      "выполнил шаг",
   row_added:           "добавил запись",
   row_deleted:         "удалил запись",
 };
@@ -38,24 +41,58 @@ export function useActivityLog(options?: { projectId?: string; limit?: number })
 
   const load = useCallback(async (p = 0) => {
     const supabase = createClient();
+    // 2-step: грузим строки отдельно от профилей/проектов, чтобы не зависеть
+    // от FK-relations в PostgREST (activity_log.user_id может ссылаться на
+    // auth.users, а не на public.profiles — тогда select(... profiles(...)) падает).
     let q = supabase
       .from("activity_log")
-      .select("*, profiles(full_name, initials), projects(name, slug)")
+      .select("*")
       .order("created_at", { ascending: false })
       .range(p * pageSize, (p + 1) * pageSize - 1);
 
     if (options?.projectId) q = q.eq("project_id", options.projectId);
 
-    const { data, error } = await q;
-    if (!error && data) {
-      const mapped = data.map((row: Record<string, unknown>) => ({
-        ...row,
-        profile: (row.profiles as { full_name: string; initials: string }) || undefined,
-        project: (row.projects as { name: string; slug: string }) || undefined,
-      })) as ActivityEntry[];
-      setEntries(p === 0 ? mapped : prev => [...prev, ...mapped]);
-      setPage(p);
+    const { data: rows, error } = await q;
+    if (error) {
+      console.error("useActivityLog.load:", error.message, error.code, error.details, error.hint);
+      setLoading(false);
+      return;
     }
+    if (!rows) {
+      setLoading(false);
+      return;
+    }
+
+    const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))] as string[];
+    const projectIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean))] as string[];
+
+    const [profilesRes, projectsRes] = await Promise.all([
+      userIds.length
+        ? supabase.from("profiles").select("id, full_name, initials").in("id", userIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; full_name: string; initials: string }>, error: null }),
+      projectIds.length
+        ? supabase.from("projects").select("id, name, slug").in("id", projectIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; name: string; slug: string }>, error: null }),
+    ]);
+
+    if (profilesRes.error) console.warn("activity_log.profiles:", profilesRes.error.message);
+    if (projectsRes.error) console.warn("activity_log.projects:", projectsRes.error.message);
+
+    const profileMap = new Map<string, { full_name: string; initials: string }>(
+      (profilesRes.data || []).map((p) => [p.id, { full_name: p.full_name, initials: p.initials }])
+    );
+    const projectMap = new Map<string, { name: string; slug: string }>(
+      (projectsRes.data || []).map((pr) => [pr.id, { name: pr.name, slug: pr.slug }])
+    );
+
+    const mapped = rows.map((row) => ({
+      ...row,
+      profile: row.user_id ? profileMap.get(row.user_id) : undefined,
+      project: row.project_id ? projectMap.get(row.project_id) : undefined,
+    })) as ActivityEntry[];
+
+    setEntries(p === 0 ? mapped : (prev) => [...prev, ...mapped]);
+    setPage(p);
     setLoading(false);
   }, [options?.projectId, pageSize]);
 
@@ -67,19 +104,21 @@ export function useActivityLog(options?: { projectId?: string; limit?: number })
       .channel(`activity-log-rt-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, async (payload) => {
         const newRow = payload.new as Record<string, unknown>;
-        // Fetch the new entry with joins so we have profile/project names.
-        // Если RLS на profiles запретит join — упадём на сырой payload.
-        const { data, error } = await supabase
-          .from("activity_log")
-          .select("*, profiles(full_name, initials), projects(name, slug)")
-          .eq("id", newRow.id as string)
-          .maybeSingle();
-        const base = (data || newRow) as Record<string, unknown>;
-        if (error) console.warn("activity_log realtime select:", error.message);
+        // 2-step: подгружаем профиль и проект отдельно (без FK-зависимости PostgREST)
+        const userId = newRow.user_id as string | null;
+        const projectId = newRow.project_id as string | null;
+        const [profileRes, projectRes] = await Promise.all([
+          userId
+            ? supabase.from("profiles").select("full_name, initials").eq("id", userId).maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+          projectId
+            ? supabase.from("projects").select("name, slug").eq("id", projectId).maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
         const entry = {
-          ...base,
-          profile: (base.profiles as { full_name: string; initials: string }) || undefined,
-          project: (base.projects as { name: string; slug: string }) || undefined,
+          ...newRow,
+          profile: profileRes.data || undefined,
+          project: projectRes.data || undefined,
         } as ActivityEntry;
         if (!options?.projectId || entry.project_id === options.projectId) {
           setEntries((prev) =>

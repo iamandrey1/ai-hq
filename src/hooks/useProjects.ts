@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logActivity } from "@/hooks/useActivityLog";
 import type { Project } from "@/types/index";
 
 function mapRow(p: Record<string, unknown>): Project {
@@ -60,6 +61,13 @@ export function useProjects() {
     if (error) { console.error("createProject:", error); return null; }
     const p = mapRow(result as Record<string, unknown>);
     setProjects(prev => [...prev, p]);
+    logActivity({
+      action_type: "project_created",
+      description: `Создал проект: ${p.name}`,
+      project_id: p.id,
+      entity_type: "project",
+      entity_id: p.id,
+    });
     return p;
   }, []);
 
@@ -72,10 +80,22 @@ export function useProjects() {
   }, [loadProjects]);
 
   const deleteProject = useCallback(async (id: string) => {
-    setProjects(prev => prev.filter(p => p.id !== id));
+    let removed: Project | undefined;
+    setProjects(prev => {
+      removed = prev.find(p => p.id === id);
+      return prev.filter(p => p.id !== id);
+    });
     const supabase = createClient();
     const { error } = await supabase.from("projects").delete().eq("id", id);
     if (error) { await loadProjects(); return false; }
+    if (removed) {
+      logActivity({
+        action_type: "project_deleted",
+        description: `Удалил проект: ${removed.name}`,
+        entity_type: "project",
+        entity_id: id,
+      });
+    }
     return true;
   }, [loadProjects]);
 

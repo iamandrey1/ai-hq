@@ -55,23 +55,48 @@ export function useFileLinks(projectId?: string | null) {
   const supabase = createClient();
 
   const load = useCallback(async () => {
+    // 2-step без FK-зависимости PostgREST
     let q = supabase
       .from("file_links")
-      .select("*, profiles(full_name), projects(name, slug)")
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (projectId !== undefined) {
       q = projectId ? q.eq("project_id", projectId) : q.is("project_id", null);
     }
 
-    const { data } = await q;
-    if (data) {
-      setFiles(data.map((row: Record<string, unknown>) => ({
-        ...row,
-        profile: (row.profiles as { full_name: string }) || undefined,
-        project: (row.projects as { name: string; slug: string }) || undefined,
-      })) as FileLink[]);
+    const { data: rows, error } = await q;
+    if (error) {
+      console.error("useFileLinks.load:", error.message, error.code, error.details, error.hint);
+      setLoading(false);
+      return;
     }
+    if (!rows) { setLoading(false); return; }
+
+    const userIds = [...new Set(rows.map((r) => r.added_by).filter(Boolean))] as string[];
+    const projectIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean))] as string[];
+
+    const [profilesRes, projectsRes] = await Promise.all([
+      userIds.length
+        ? supabase.from("profiles").select("id, full_name").in("id", userIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; full_name: string }>, error: null }),
+      projectIds.length
+        ? supabase.from("projects").select("id, name, slug").in("id", projectIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; name: string; slug: string }>, error: null }),
+    ]);
+
+    const profileMap = new Map<string, { full_name: string }>(
+      (profilesRes.data || []).map((p) => [p.id, { full_name: p.full_name }])
+    );
+    const projectMap = new Map<string, { name: string; slug: string }>(
+      (projectsRes.data || []).map((pr) => [pr.id, { name: pr.name, slug: pr.slug }])
+    );
+
+    setFiles(rows.map((row) => ({
+      ...row,
+      profile: row.added_by ? profileMap.get(row.added_by) : undefined,
+      project: row.project_id ? projectMap.get(row.project_id) : undefined,
+    })) as FileLink[]);
     setLoading(false);
   }, [projectId]);
 
@@ -104,23 +129,31 @@ export function useFileLinks(projectId?: string | null) {
     const { data: row, error } = await supabase
       .from("file_links")
       .insert(insertPayload)
-      .select("*, profiles(full_name), projects(name, slug)")
+      .select("*")
       .single();
     if (error || !row) {
       console.error("addFile:", error?.message, error?.code, error?.details);
       return false;
     }
-    const r = row as Record<string, unknown>;
+    // Подтягиваем профиль/проект отдельным запросом — не зависим от FK PostgREST
+    const [profileRes, projectRes] = await Promise.all([
+      row.added_by
+        ? supabase.from("profiles").select("full_name").eq("id", row.added_by).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      row.project_id
+        ? supabase.from("projects").select("name, slug").eq("id", row.project_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
     const enriched: FileLink = {
-      ...(r as unknown as FileLink),
-      profile: (r.profiles as { full_name: string }) || undefined,
-      project: (r.projects as { name: string; slug: string }) || undefined,
+      ...(row as unknown as FileLink),
+      profile: profileRes.data || undefined,
+      project: projectRes.data || undefined,
     };
     // Optimistic insert; realtime will dedupe by id
     setFiles((prev) => prev.some((f) => f.id === enriched.id) ? prev : [enriched, ...prev]);
     logActivity({
       action_type: "file_added",
-      description: `Добавил файл: ${data.title}`,
+      description: data.title,
       project_id: insertPayload.project_id || undefined,
       entity_type: "file_link",
       entity_id: enriched.id,
@@ -137,17 +170,24 @@ export function useFileLinks(projectId?: string | null) {
       .from("file_links")
       .update(patch)
       .eq("id", id)
-      .select("*, profiles(full_name), projects(name, slug)")
+      .select("*")
       .single();
     if (error || !data) {
       console.error("updateFile:", error?.message);
       return false;
     }
-    const d = data as Record<string, unknown>;
+    const [profileRes, projectRes] = await Promise.all([
+      data.added_by
+        ? supabase.from("profiles").select("full_name").eq("id", data.added_by).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      data.project_id
+        ? supabase.from("projects").select("name, slug").eq("id", data.project_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
     const enriched: FileLink = {
-      ...(d as unknown as FileLink),
-      profile: (d.profiles as { full_name: string }) || undefined,
-      project: (d.projects as { name: string; slug: string }) || undefined,
+      ...(data as unknown as FileLink),
+      profile: profileRes.data || undefined,
+      project: projectRes.data || undefined,
     };
     setFiles((prev) => prev.map((f) => f.id === id ? enriched : f));
     return true;
@@ -168,7 +208,7 @@ export function useFileLinks(projectId?: string | null) {
     if (removed) {
       logActivity({
         action_type: "file_deleted",
-        description: `Удалил файл: ${removed.title}`,
+        description: removed.title,
         project_id: removed.project_id || undefined,
         entity_type: "file_link",
         entity_id: id,

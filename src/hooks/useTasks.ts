@@ -23,10 +23,11 @@ export function useTasks() {
     const supabase = createClient();
 
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tasks")
         .select("*")
         .order("created_at", { ascending: false });
+      if (error) console.error("useTasks.load:", error.message, error.code, error.details, error.hint);
       if (data) setTasks(data as Task[]);
       setLoading(false);
     };
@@ -75,7 +76,7 @@ export function useTasks() {
     });
     logActivity({
       action_type: "task_created",
-      description: `Создал задачу: ${task.title}`,
+      description: task.title,
       project_id: payload.project_id || undefined,
       entity_type: "task",
       entity_id: data?.id,
@@ -126,7 +127,7 @@ export function useTasks() {
     if (updates.status === "done" && prev) {
       logActivity({
         action_type: "task_done",
-        description: `Закрыл задачу: ${prev.title}`,
+        description: prev.title,
         project_id: prev.project_id,
         entity_type: "task",
         entity_id: id,
@@ -156,7 +157,7 @@ export function useTasks() {
     if (removed) {
       logActivity({
         action_type: "task_deleted",
-        description: `Удалил задачу: ${removed.title}`,
+        description: removed.title,
         project_id: removed.project_id,
         entity_type: "task",
         entity_id: id,
