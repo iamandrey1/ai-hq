@@ -1,6 +1,6 @@
 "use client";
 
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { useSubscriptions, type Subscription } from "@/hooks/useSubscriptions";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Plus, Pencil, Pause, Play, Trash2, X } from "lucide-react";
@@ -102,9 +102,8 @@ export default function BudgetPage() {
   };
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto px-10 py-8 pb-16 relative bg-bg">
+    <AppShell>
+      <main className="px-4 md:px-10 py-8 pb-16 relative bg-bg min-h-full">
         <div className="flex items-start justify-between mb-8">
           <div>
             <h1 className="font-display text-[32px] font-medium tracking-[-0.01em] mb-2">
@@ -365,6 +364,6 @@ sub.status === "active" ? "bg-green/20 text-green" :
           onCancel={() => setConfirmDelete(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { useProjects } from "@/hooks/useProjects";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import Link from "next/link";
@@ -116,9 +116,8 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto px-10 py-8 pb-16 bg-bg">
+    <AppShell>
+      <main className="px-4 md:px-10 py-8 pb-16 bg-bg min-h-full">
         <div className="flex items-start justify-between mb-8">
           <div>
             <h1 className="text-[28px] font-semibold tracking-tight text-ink mb-1">Проекты</h1>
@@ -322,6 +321,6 @@ export default function ProjectsPage() {
           onCancel={() => setConfirmDel(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }

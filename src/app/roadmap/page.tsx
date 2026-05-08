@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useProjects } from "@/hooks/useProjects";
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { createClient } from "@/lib/supabase/client";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -206,9 +206,8 @@ export default function RoadmapPage() {
   const isLoading = projectsLoading || loading;
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto px-8 py-8 pb-16 bg-bg">
+    <AppShell>
+      <main className="px-4 md:px-8 py-8 pb-16 bg-bg min-h-full">
         <div className="mb-8">
           <h1 className="text-[28px] font-semibold tracking-tight text-ink mb-1">Roadmap</h1>
           <p className="text-sm text-ink-3">Timeline проектов · Вехи · 6 месяцев</p>
@@ -533,6 +532,6 @@ export default function RoadmapPage() {
           onCancel={() => setDeleteId(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }

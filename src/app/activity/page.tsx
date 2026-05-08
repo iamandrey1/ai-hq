@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { useActivityLog, ACTION_LABELS } from "@/hooks/useActivityLog";
 import { useProjects } from "@/hooks/useProjects";
 import { Activity, Filter } from "lucide-react";
@@ -41,10 +41,9 @@ export default function ActivityPage() {
   }
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto bg-bg">
-        <div className="border-b border-line px-8 py-6">
+    <AppShell>
+      <div className="bg-bg min-h-full">
+        <div className="border-b border-line px-4 md:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Activity size={18} className="text-accent" />
@@ -66,7 +65,7 @@ export default function ActivityPage() {
           </div>
         </div>
 
-        <div className="px-8 py-6 max-w-2xl">
+        <div className="px-4 md:px-8 py-6 max-w-2xl">
           {loading && entries.length === 0 && (
             <div className="text-ink-3 text-sm text-center py-12">Загрузка...</div>
           )}
@@ -128,7 +127,7 @@ export default function ActivityPage() {
             </button>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

@@ -13,7 +13,7 @@ import { useProjectSteps } from "@/hooks/useProjectSteps";
 import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFileLinks";
 import { useCustomTables, useCustomTableData, CustomColumn } from "@/hooks/useCustomTable";
 import { useProjectBudget, BudgetItem } from "@/hooks/useProjectBudget";
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { CommentsPanel } from "@/components/comments/CommentsPanel";
 import { toast } from "sonner";
 import {
@@ -275,35 +275,32 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
   if (!project && projects.length > 0) {
     return (
-      <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-        <Corridor />
-        <main className="flex-1 flex items-center justify-center bg-bg">
+      <AppShell>
+        <div className="flex-1 flex items-center justify-center bg-bg min-h-full">
           <div className="text-center">
             <h1 className="text-xl font-semibold text-ink mb-3">Проект не найден</h1>
             <Link href="/projects" className="text-accent hover:text-accent-2 text-sm">← Все проекты</Link>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppShell>
     );
   }
 
   if (!project) {
     return (
-      <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-        <Corridor />
-        <main className="flex-1 flex items-center justify-center bg-bg">
+      <AppShell>
+        <div className="flex-1 flex items-center justify-center bg-bg min-h-full">
           <div className="text-ink-3 text-sm">Загрузка...</div>
-        </main>
-      </div>
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto bg-bg">
+    <AppShell>
+      <div className="bg-bg min-h-full">
         {/* Page header */}
-        <div className="border-b border-line px-8 pt-6 pb-0">
+        <div className="border-b border-line px-4 md:px-8 pt-6 pb-0">
           <Link href="/projects" className="inline-flex items-center gap-1.5 text-ink-3 hover:text-ink text-sm mb-4 transition-colors">
             <ArrowLeft size={14} />Проекты
           </Link>
@@ -381,7 +378,7 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
         </div>
 
         {/* Tab content */}
-        <div className="px-8 py-6">
+        <div className="px-4 md:px-8 py-6">
 
           {/* ── OVERVIEW ── */}
           {tab === "overview" && (
@@ -1215,7 +1212,7 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
           )}
 
         </div>
-      </main>
+      </div>
 
       {/* ── Step instruction sheet ── */}
       {sheetVisible && (() => {
@@ -1293,7 +1290,7 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
           </>
         );
       })()}
-    </div>
+    </AppShell>
   );
 }
 

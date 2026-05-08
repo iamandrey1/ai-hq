@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFileLinks";
 import { useProjects } from "@/hooks/useProjects";
 import {
@@ -119,11 +119,10 @@ export default function FilesPage() {
   };
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto bg-bg">
+    <AppShell>
+      <div className="bg-bg min-h-full">
         {/* Header */}
-        <div className="border-b border-line px-8 py-6">
+        <div className="border-b border-line px-4 md:px-8 py-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-[20px] font-semibold text-ink">Файлы и ссылки</h1>
             <button
@@ -167,7 +166,7 @@ export default function FilesPage() {
         </div>
 
         {/* Grid */}
-        <div className="px-8 py-6">
+        <div className="px-4 md:px-8 py-6">
           {loading && (
             <div className="text-ink-3 text-sm text-center py-12">Загрузка...</div>
           )}
@@ -237,7 +236,7 @@ export default function FilesPage() {
             })}
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Modal */}
       {modal && (
@@ -314,6 +313,6 @@ export default function FilesPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
