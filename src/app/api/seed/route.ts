@@ -11,7 +11,17 @@ export async function POST() {
     );
     
     // Seed projects
-    const projects = [
+    type SeedProject = {
+      slug: string;
+      name: string;
+      category: string;
+      description: string;
+      status: string;
+      progress: number;
+      repo_url: string | null;
+    };
+
+    const projects: SeedProject[] = [
       {
         slug: "crypto-compass",
         name: "Крипто-Компас Pro",
@@ -28,6 +38,7 @@ export async function POST() {
         description: "5 ниш: крипто, психо-факты, AI-заработок, science-shorts, история. Автопостинг через Make.com.",
         status: "active",
         progress: 8,
+        repo_url: null,
       },
       {
         slug: "shopify-stores",
@@ -36,6 +47,7 @@ export async function POST() {
         description: "Запуск через Shopify + dropshipping. Этап исследования ниш и поставщиков.",
         status: "active",
         progress: 3,
+        repo_url: null,
       },
       {
         slug: "viral-factory",
@@ -44,11 +56,12 @@ export async function POST() {
         description: "Reels/Shorts/TikTok с монетизацией и продвижением каналов. Контент-машина на Sora/Runway/ElevenLabs.",
         status: "active",
         progress: 0,
+        repo_url: null,
       },
     ];
 
     let seeded = 0;
-    let errors: string[] = [];
+    const errors: string[] = [];
 
     for (const project of projects) {
       // Try insert first, if exists skip
@@ -69,8 +82,9 @@ export async function POST() {
     }
 
     return Response.json({ success: true, seeded, errors: errors.length > 0 ? errors : undefined });
-  } catch (error: any) {
-    return Response.json({ error: error?.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return Response.json({ error: message }, { status: 500 });
   }
 }
 

@@ -193,6 +193,44 @@ html.light {
 /* Hide aurora in light mode */
 html.light .aurora-layer { display: none; }
 
+/* ─── Radix data-state animation utilities ─── */
+.data-\[state\=open\]\:animate-in[data-state="open"],
+.animate-in {
+  animation-duration: 0.18s;
+  animation-fill-mode: both;
+}
+.data-\[state\=closed\]\:animate-out[data-state="closed"],
+.animate-out {
+  animation-duration: 0.15s;
+  animation-fill-mode: both;
+}
+.fade-in-0 { animation-name: fadeIn; }
+.fade-out-0 { animation-name: fadeOut; }
+.zoom-in-95 { animation-name: zoomIn95; }
+.slide-in-from-left { animation-name: slideInLeft; }
+.slide-in-from-bottom { animation-name: slideInBottom; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes zoomIn95 {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes slideInBottom {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
 /* ─── Step sheet slide-in ─── */
 @keyframes slideInRight {
   from { transform: translateX(100%); opacity: 0; }

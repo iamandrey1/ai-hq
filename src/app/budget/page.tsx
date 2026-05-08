@@ -1,12 +1,15 @@
 "use client";
 
 import { Corridor } from "@/components/Corridor";
-import { useSubscriptions } from "@/hooks/useSubscriptions";
+import { useSubscriptions, type Subscription } from "@/hooks/useSubscriptions";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Plus, Pencil, Pause, Play, Trash2, X } from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
+
+type Category = Subscription["category"];
+type Status = Subscription["status"];
 
 const categoryLabels: Record<string, string> = {
   ai: "AI",
@@ -27,14 +30,20 @@ const categoryColors: Record<string, string> = {
 export default function BudgetPage() {
   const { subs, loading, total, byCategory, createSub, updateSub, deleteSub } = useSubscriptions();
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingSub, setEditingSub] = useState<any>(null);
-  const [confirmDelete, setConfirmDelete] = useState<any>(null);
+  const [editingSub, setEditingSub] = useState<Subscription | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Subscription | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    service: string;
+    category: Category;
+    cost_monthly_usd: number;
+    status: Status;
+    notes: string;
+  }>({
     service: "",
-    category: "ai" as string,
+    category: "ai",
     cost_monthly_usd: 0,
-    status: "active" as string,
+    status: "active",
     notes: "",
   });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -60,7 +69,7 @@ export default function BudgetPage() {
       await updateSub(editingSub.id, form);
       toast.success("Подписка обновлена");
     } else {
-      await createSub(form as any);
+      await createSub(form);
       toast.success("Подписка добавлена");
     }
     setModalOpen(false);
@@ -68,26 +77,26 @@ export default function BudgetPage() {
     setForm({ service: "", category: "ai", cost_monthly_usd: 0, status: "active", notes: "" });
   };
 
-  const handleStatusChange = async (sub: any, status: string) => {
+  const handleStatusChange = async (sub: Subscription, status: Status) => {
     await updateSub(sub.id, { status });
     toast.success(`Статус: ${status === "paused" ? "На паузе" : status === "active" ? "Активна" : "Отменена"}`);
     setOpenMenu(null);
   };
 
-  const handleEdit = (sub: any) => {
+  const handleEdit = (sub: Subscription) => {
     setEditingSub(sub);
-    setForm({ 
-      service: sub.service, 
-      category: sub.category, 
-      cost_monthly_usd: Number(sub.cost_monthly_usd), 
-      status: sub.status, 
-      notes: sub.notes || "" 
+    setForm({
+      service: sub.service,
+      category: sub.category,
+      cost_monthly_usd: Number(sub.cost_monthly_usd),
+      status: sub.status,
+      notes: sub.notes || "",
     });
     setModalOpen(true);
     setOpenMenu(null);
   };
 
-  const handleDelete = (sub: any) => {
+  const handleDelete = (sub: Subscription) => {
     setConfirmDelete(sub);
     setOpenMenu(null);
   };
@@ -284,7 +293,7 @@ sub.status === "active" ? "bg-green/20 text-green" :
                   <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Категория</label>
                   <select
                     value={form.category}
-                    onChange={e => setForm({ ...form, category: e.target.value })}
+                    onChange={e => setForm({ ...form, category: e.target.value as Category })}
                     className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
                   >
                     <option value="ai">AI</option>
@@ -309,7 +318,7 @@ sub.status === "active" ? "bg-green/20 text-green" :
                 <label className="block text-xs font-mono text-ink-3 uppercase tracking-wider mb-1.5">Статус</label>
                 <select
                   value={form.status}
-                  onChange={e => setForm({ ...form, status: e.target.value })}
+                  onChange={e => setForm({ ...form, status: e.target.value as Status })}
                   className="w-full bg-bg border border-line rounded-lg px-4 py-2.5 text-ink text-sm focus:border-accent focus:outline-none"
                 >
                   <option value="active">Активна</option>

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, use, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useProjects } from "@/hooks/useProjects";
 import { useProjectPhases, Phase } from "@/hooks/useProjectPhases";
@@ -13,17 +14,22 @@ import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFil
 import { useCustomTables, useCustomTableData, CustomColumn } from "@/hooks/useCustomTable";
 import { useProjectBudget, BudgetItem } from "@/hooks/useProjectBudget";
 import { Corridor } from "@/components/Corridor";
+import { CommentsPanel } from "@/components/comments/CommentsPanel";
 import { toast } from "sonner";
 import {
   ArrowLeft, ExternalLink, ChevronDown, ChevronRight, Check,
   Plus, Pencil, Trash2, TrendingUp, AlertTriangle, HelpCircle,
   Link as LinkIcon, Search, X, FileText, Github, Figma, Globe, Table, HardDrive, Database,
-  Clock, ChevronRight as ArrowRight,
+  Clock, ChevronRight as ArrowRight, Sparkles, RefreshCw, MessageSquare,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { PieChart, Pie, Cell } from "recharts";
 
 type Tab = "overview" | "plan" | "kpi" | "risks" | "budget" | "files" | "data";
+
+const TAB_VALUES: Tab[] = ["overview", "plan", "kpi", "risks", "budget", "files", "data"];
+const isValidTab = (v: string | null): v is Tab =>
+  v !== null && (TAB_VALUES as string[]).includes(v);
 
 const categoryBadge: Record<string, string> = {
   crypto:   "bg-amber-400/10 text-amber-400",
@@ -52,7 +58,20 @@ const statusLabel: Record<string, string> = {
 export default function ProjectPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const { projects } = useProjects();
-  const [tab, setTab] = useState<Tab>("overview");
+
+  // Tab state synced with ?tab=... query param so refresh keeps position
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tabParam = searchParams.get("tab");
+  const tab: Tab = isValidTab(tabParam) ? tabParam : "overview";
+  const setTab = useCallback((next: Tab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "overview") params.delete("tab");
+    else params.set("tab", next);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
   const [addingToPhase, setAddingToPhase] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
@@ -78,6 +97,25 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   // Step sheet state
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
+
+  // AI Summary
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [selectedRiskId, setSelectedRiskId] = useState<string | null>(null);
+
+  const refreshAiSummary = useCallback(async (projectId: string) => {
+    setAiSummaryLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/summary`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setAiSummary(data.summary ?? null);
+    } catch {
+      toast.error("Не удалось получить AI Summary");
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  }, []);
 
   const project = projects.find(p => p.slug === slug);
 
@@ -298,6 +336,16 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                   <ExternalLink size={13} />Prod
                 </a>
               )}
+              <button
+                onClick={() => refreshAiSummary(project.id)}
+                disabled={aiSummaryLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/10 border border-accent/30 rounded text-sm text-accent hover:bg-accent/20 transition-colors disabled:opacity-50"
+              >
+                {aiSummaryLoading
+                  ? <RefreshCw size={13} className="animate-spin" />
+                  : <Sparkles size={13} />}
+                AI Brief
+              </button>
             </div>
           </div>
 
@@ -344,6 +392,36 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                 <StatCard label="Выполнено задач" value={String(progress.done)} />
                 <StatCard label="Активных рисков" value={String(unresolvedRisks.length)} danger={unresolvedRisks.length > 0} />
               </div>
+
+              {/* AI Brief card */}
+              {(aiSummary || aiSummaryLoading) && (
+                <div className="bg-panel border border-accent/20 rounded-lg p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-accent" />
+                      <span className="text-[13px] font-medium text-ink">AI Brief</span>
+                    </div>
+                    <button
+                      onClick={() => refreshAiSummary(project.id)}
+                      disabled={aiSummaryLoading}
+                      className="text-[11px] text-ink-3 hover:text-ink flex items-center gap-1 transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw size={11} className={aiSummaryLoading ? "animate-spin" : ""} />
+                      Обновить
+                    </button>
+                  </div>
+                  {aiSummaryLoading ? (
+                    <div className="space-y-2">
+                      <div className="h-3 bg-line rounded animate-pulse w-3/4" />
+                      <div className="h-3 bg-line rounded animate-pulse w-1/2" />
+                    </div>
+                  ) : aiSummary ? (
+                    <div className="text-[13px] text-ink-2 leading-relaxed prose-sm">
+                      <ReactMarkdown>{aiSummary}</ReactMarkdown>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {unresolvedRisks.length > 0 && (
                 <div>
@@ -924,54 +1002,73 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
               <div className="space-y-2">
                 {risks.map(risk => (
-                  <div
-                    key={risk.id}
-                    className={`bg-panel border border-line rounded-lg p-4 flex items-start gap-3 group ${risk.is_resolved ? "opacity-40" : ""}`}
-                  >
-                    <AlertTriangle size={15} className={`mt-0.5 shrink-0 ${risk.is_resolved ? "text-ink-3" : "text-amber-400"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[13px] font-medium ${risk.is_resolved ? "line-through text-ink-3" : "text-ink"}`}>
-                          {risk.title}
-                        </span>
-                        <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded text-white ${getProbabilityColor(risk.probability)}`}>
-                          {getProbabilityLabel(risk.probability)}
-                        </span>
-                        {risk.impact && (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-panel-2 text-ink-3">
-                            Влияние: {risk.impact === "low" ? "Низкое" : risk.impact === "medium" ? "Среднее" : "Высокое"}
+                  <div key={risk.id} className="space-y-0">
+                    <div
+                      className={`bg-panel border border-line rounded-lg p-4 flex items-start gap-3 group ${risk.is_resolved ? "opacity-40" : ""} ${selectedRiskId === risk.id ? "border-accent/40 rounded-b-none" : ""}`}
+                    >
+                      <AlertTriangle size={15} className={`mt-0.5 shrink-0 ${risk.is_resolved ? "text-ink-3" : "text-amber-400"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[13px] font-medium ${risk.is_resolved ? "line-through text-ink-3" : "text-ink"}`}>
+                            {risk.title}
                           </span>
+                          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded text-white ${getProbabilityColor(risk.probability)}`}>
+                            {getProbabilityLabel(risk.probability)}
+                          </span>
+                          {risk.impact && (
+                            <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-panel-2 text-ink-3">
+                              Влияние: {risk.impact === "low" ? "Низкое" : risk.impact === "medium" ? "Среднее" : "Высокое"}
+                            </span>
+                          )}
+                        </div>
+                        {risk.description && (
+                          <div className="text-[12px] text-ink-3 mb-0.5">{risk.description}</div>
+                        )}
+                        {risk.mitigation && (
+                          <div className="text-[12px] text-ink-2">→ {risk.mitigation}</div>
                         )}
                       </div>
-                      {risk.description && (
-                        <div className="text-[12px] text-ink-3 mb-0.5">{risk.description}</div>
-                      )}
-                      {risk.mitigation && (
-                        <div className="text-[12px] text-ink-2">→ {risk.mitigation}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {!risk.is_resolved && (
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
-                          onClick={() => resolveRisk(risk.id).then(ok => ok && toast.success("Риск решён"))}
-                          className="text-[12px] px-2.5 py-1 bg-panel-2 border border-line rounded text-ink-2 hover:bg-green/10 hover:text-green hover:border-green/30 transition-colors"
+                          onClick={() => setSelectedRiskId(prev => prev === risk.id ? null : risk.id)}
+                          className={`p-1.5 text-ink-3 hover:text-accent transition-all ${selectedRiskId === risk.id ? "text-accent" : "opacity-0 group-hover:opacity-100"}`}
+                          title="Обсуждение"
                         >
-                          Решён
+                          <MessageSquare size={12} />
                         </button>
-                      )}
-                      <button
-                        onClick={() => openEditRisk(risk)}
-                        className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-ink transition-all"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button
-                        onClick={() => deleteRisk(risk.id).then(ok => ok && toast.success("Удалено"))}
-                        className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-red transition-all"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                        {!risk.is_resolved && (
+                          <button
+                            onClick={() => resolveRisk(risk.id).then(ok => ok && toast.success("Риск решён"))}
+                            className="text-[12px] px-2.5 py-1 bg-panel-2 border border-line rounded text-ink-2 hover:bg-green/10 hover:text-green hover:border-green/30 transition-colors"
+                          >
+                            Решён
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openEditRisk(risk)}
+                          className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-ink transition-all"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => deleteRisk(risk.id).then(ok => ok && toast.success("Удалено"))}
+                          className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-red transition-all"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
+                    {selectedRiskId === risk.id && (
+                      <div className="border border-t-0 border-accent/40 rounded-b-lg overflow-hidden">
+                        <CommentsPanel
+                          table="risk_comments"
+                          parentColumn="risk_id"
+                          parentId={risk.id}
+                          title="Обсуждение риска"
+                          subtitle={risk.title}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
