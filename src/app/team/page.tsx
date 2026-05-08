@@ -1,6 +1,6 @@
 "use client";
 
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { useStore } from "@/lib/store";
 import { useProfile } from "@/hooks/useProfile";
 import { createClient } from "@/lib/supabase/client";
@@ -83,9 +83,8 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto px-8 py-8 pb-16 bg-bg">
+    <AppShell>
+      <main className="px-4 md:px-8 py-8 pb-16 bg-bg min-h-full">
         <div className="mb-8">
           <h1 className="text-[28px] font-semibold tracking-tight text-ink mb-1">Команда</h1>
           <p className="text-sm text-ink-3">{agents.length} AI-агента · {profiles.length} CEO</p>
@@ -182,6 +181,6 @@ export default function TeamPage() {
           ))}
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }

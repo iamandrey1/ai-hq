@@ -1,13 +1,11 @@
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
 import { Office } from "@/components/Office";
 import { Cabinet } from "@/components/Cabinet";
 
 export default function OfficePage() {
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr 380px" }}>
-      <Corridor />
+    <AppShell rightPanel={<Cabinet />}>
       <Office />
-      <Cabinet />
-    </div>
+    </AppShell>
   );
 }

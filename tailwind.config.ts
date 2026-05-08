@@ -44,6 +44,11 @@ export default {
       animation: {
         "msg-in": "msgIn 0.15s ease both",
         "pulse-slow": "pulseSlow 2s infinite",
+        "fade-in-0": "fadeIn 0.18s ease both",
+        "fade-out-0": "fadeOut 0.15s ease both",
+        "zoom-in-95": "zoomIn95 0.18s cubic-bezier(0.2,0.7,0.2,1) both",
+        "slide-in-from-left": "slideInLeft 0.22s cubic-bezier(0.2,0.7,0.2,1) both",
+        "slide-in-from-bottom": "slideInBottom 0.22s cubic-bezier(0.2,0.7,0.2,1) both",
       },
       keyframes: {
         pulseSlow: {
@@ -54,6 +59,31 @@ export default {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        fadeIn: {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        fadeOut: {
+          from: { opacity: "1" },
+          to: { opacity: "0" },
+        },
+        zoomIn95: {
+          from: { opacity: "0", transform: "translate(-50%,-50%) scale(0.96)" },
+          to: { opacity: "1", transform: "translate(-50%,-50%) scale(1)" },
+        },
+        slideInLeft: {
+          from: { transform: "translateX(-100%)" },
+          to: { transform: "translateX(0)" },
+        },
+        slideInBottom: {
+          from: { transform: "translateY(20px)", opacity: "0" },
+          to: { transform: "translateY(0)", opacity: "1" },
+        },
+      },
+      boxShadow: {
+        "card": "0 1px 0 rgba(255,255,255,0.03) inset, 0 0 0 1px rgb(var(--color-line) / 1)",
+        "card-hover": "0 1px 0 rgba(255,255,255,0.05) inset, 0 0 0 1px rgb(var(--color-line-2) / 1), 0 8px 24px rgba(0,0,0,0.4)",
+        "glow-accent": "0 0 0 1px rgb(var(--color-accent) / 0.3), 0 0 40px rgb(var(--color-accent) / 0.18)",
       },
     },
   },

@@ -1,10 +1,11 @@
 "use client";
 
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
+import { CommentsPanel } from "@/components/comments/CommentsPanel";
 import { useTasks, type Task } from "@/hooks/useTasks";
 import { useProjects } from "@/hooks/useProjects";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Plus, MoreVertical, Pencil, Trash2, X, GripVertical } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, X, GripVertical, MessageSquare, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef, DragEvent } from "react";
 import { toast } from "sonner";
 
@@ -41,6 +42,7 @@ export default function TasksPage() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [draggedTask, setDraggedTask] = useState<any>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -135,9 +137,8 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto px-10 py-8 pb-16 relative bg-bg">
+    <AppShell>
+      <main className="px-4 md:px-10 py-8 pb-16 relative bg-bg min-h-full">
         <div className="flex items-start justify-between mb-8">
           <div>
             <h1 className="font-display text-[32px] font-medium tracking-[-0.01em] mb-2">
@@ -183,6 +184,7 @@ export default function TasksPage() {
                   onStatusChange={handleStatusChange}
                   onEdit={() => { setEditingTask(task); setForm({ title: task.title, description: task.description || "", project_id: task.project_id || "", priority: task.priority, status: task.status }); setModalOpen(true); setOpenMenu(null); }}
                   onDelete={() => { setConfirmDelete(task); setOpenMenu(null); }}
+                  onOpenComments={() => setSelectedTask(task)}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                   isDragging={draggedTask?.id === task.id}
@@ -214,6 +216,7 @@ export default function TasksPage() {
                   onStatusChange={handleStatusChange}
                   onEdit={() => { setEditingTask(task); setForm({ title: task.title, description: task.description || "", project_id: task.project_id || "", priority: task.priority, status: task.status }); setModalOpen(true); setOpenMenu(null); }}
                   onDelete={() => { setConfirmDelete(task); setOpenMenu(null); }}
+                  onOpenComments={() => setSelectedTask(task)}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                   isDragging={draggedTask?.id === task.id}
@@ -245,6 +248,7 @@ export default function TasksPage() {
                   onStatusChange={handleStatusChange}
                   onEdit={() => { setEditingTask(task); setForm({ title: task.title, description: task.description || "", project_id: task.project_id || "", priority: task.priority, status: task.status }); setModalOpen(true); setOpenMenu(null); }}
                   onDelete={() => { setConfirmDelete(task); setOpenMenu(null); }}
+                  onOpenComments={() => setSelectedTask(task)}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                   isDragging={draggedTask?.id === task.id}
@@ -254,6 +258,51 @@ export default function TasksPage() {
           </div>
         </div>
       </main>
+
+      {/* Task detail sheet with comments */}
+      {selectedTask && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setSelectedTask(null)} />
+          <div className="fixed top-0 right-0 h-full w-full max-w-[520px] bg-panel border-l border-line z-50 flex flex-col shadow-2xl">
+            <div className="flex items-start gap-3 px-6 py-5 border-b border-line shrink-0">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
+                    selectedTask.priority === "high" ? "bg-red/20 text-red" :
+                    selectedTask.priority === "medium" ? "bg-accent/20 text-accent" : "bg-panel-2 text-ink-3"
+                  }`}>
+                    {selectedTask.priority === "high" ? "Высокий" : selectedTask.priority === "medium" ? "Средний" : "Низкий"}
+                  </span>
+                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-panel-2 text-ink-3">
+                    {selectedTask.status === "todo" ? "К выполнению" : selectedTask.status === "in_progress" ? "В работе" : "Готово"}
+                  </span>
+                  {selectedTask.project_id && (
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate">
+                      {getProjectName(selectedTask.project_id)}
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-[17px] font-semibold text-ink leading-snug">{selectedTask.title}</h2>
+                {selectedTask.description && (
+                  <p className="text-[13px] text-ink-3 mt-2 leading-relaxed">{selectedTask.description}</p>
+                )}
+              </div>
+              <button onClick={() => setSelectedTask(null)} className="text-ink-3 hover:text-ink shrink-0 mt-0.5">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <CommentsPanel
+                table="task_comments"
+                parentColumn="task_id"
+                parentId={selectedTask.id}
+                title="Обсуждение"
+                subtitle={selectedTask.title}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Add/Edit Modal */}
       {modalOpen && (
@@ -356,11 +405,11 @@ export default function TasksPage() {
           onCancel={() => setConfirmDelete(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
 
-function TaskCard({ task, projectName, onStatusChange, onEdit, onDelete, onDragStart, onDragEnd, isDragging }: any) {
+function TaskCard({ task, projectName, onStatusChange, onEdit, onDelete, onOpenComments, onDragStart, onDragEnd, isDragging }: any) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   return (
@@ -377,9 +426,19 @@ function TaskCard({ task, projectName, onStatusChange, onEdit, onDelete, onDragS
         <span className={`font-mono text-[14px] ${task.status === "done" ? "text-green" : priorityColors[task.priority]}`}>
           {task.status === "todo" ? "○" : task.status === "in_progress" ? "◐" : "●"}
         </span>
-        <span className={`text-[14px] font-medium flex-1 ${task.status === "done" ? "line-through opacity-60" : ""}`}>
+        <span
+          className={`text-[14px] font-medium flex-1 cursor-pointer hover:text-accent transition-colors ${task.status === "done" ? "line-through opacity-60" : ""}`}
+          onClick={(e) => { e.stopPropagation(); onOpenComments(); }}
+        >
           {task.title}
         </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onOpenComments(); }}
+          className="p-1 hover:bg-panel-2 rounded transition-colors opacity-0 group-hover:opacity-100"
+          title="Открыть обсуждение"
+        >
+          <MessageSquare size={13} className="text-ink-3" />
+        </button>
         <button
           onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === task.id ? null : task.id); }}
           className="p-1 hover:bg-panel-2 rounded transition-colors opacity-0 group-hover:opacity-100"

@@ -47,8 +47,8 @@ export function Cabinet() {
     if (!inputValue.trim()) return;
     const userInput = inputValue.trim();
 
-    await saveMessageToDB(userInput, "ceo", senderName);
-    addMessage({ sender: "ceo", senderName, content: userInput });
+    const ceoMessageId = (await saveMessageToDB(userInput, "ceo", senderName)) ?? `ceo-${Date.now()}`;
+    addMessage({ id: ceoMessageId, sender: "ceo", senderName, content: userInput });
     setInputValue("");
     setIsTyping(true);
 
@@ -99,6 +99,7 @@ export function Cabinet() {
       setIsTyping(false);
       const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
       addMessage({
+        id: `claude-error-${Date.now()}`,
         sender: "claude",
         senderName: "Claude",
         content: `Ошибка: ${msg}. Проверьте API ключ в настройках.`,

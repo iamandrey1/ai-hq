@@ -1,29 +1,36 @@
 "use client";
 import { useState, useEffect, use, useCallback } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useProjects } from "@/hooks/useProjects";
-import { useProjectPhases, Phase } from "@/hooks/useProjectPhases";
-import { useProjectChecklist, ChecklistItem } from "@/hooks/useProjectChecklist";
-import { useProjectKpis, Kpi } from "@/hooks/useProjectKpis";
+import { useProjectPhases } from "@/hooks/useProjectPhases";
+import { useProjectChecklist } from "@/hooks/useProjectChecklist";
+import { useProjectKpis } from "@/hooks/useProjectKpis";
 import { useProjectForecast } from "@/hooks/useProjectForecast";
-import { useProjectRisks, Risk } from "@/hooks/useProjectRisks";
+import { useProjectRisks } from "@/hooks/useProjectRisks";
 import { useProjectSteps } from "@/hooks/useProjectSteps";
 import { useFileLinks, FileLink, getIconType, ICON_LABELS } from "@/hooks/useFileLinks";
 import { useCustomTables, useCustomTableData, CustomColumn } from "@/hooks/useCustomTable";
 import { useProjectBudget, BudgetItem } from "@/hooks/useProjectBudget";
-import { Corridor } from "@/components/Corridor";
+import { AppShell } from "@/components/layout/AppShell";
+import { OverviewTab } from "./tabs/OverviewTab";
+import { KpiTab } from "./tabs/KpiTab";
+import { RisksTab } from "./tabs/RisksTab";
+import { PlanTab } from "./tabs/PlanTab";
 import { toast } from "sonner";
 import {
-  ArrowLeft, ExternalLink, ChevronDown, ChevronRight, Check,
-  Plus, Pencil, Trash2, TrendingUp, AlertTriangle, HelpCircle,
+  ArrowLeft, ExternalLink,
+  Plus, Pencil, Trash2,
   Link as LinkIcon, Search, X, FileText, Github, Figma, Globe, Table, HardDrive, Database,
-  Clock, ChevronRight as ArrowRight,
+  Sparkles, RefreshCw,
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { PieChart, Pie, Cell } from "recharts";
 
 type Tab = "overview" | "plan" | "kpi" | "risks" | "budget" | "files" | "data";
+
+const TAB_VALUES: Tab[] = ["overview", "plan", "kpi", "risks", "budget", "files", "data"];
+const isValidTab = (v: string | null): v is Tab =>
+  v !== null && (TAB_VALUES as string[]).includes(v);
 
 const categoryBadge: Record<string, string> = {
   crypto:   "bg-amber-400/10 text-amber-400",
@@ -52,32 +59,37 @@ const statusLabel: Record<string, string> = {
 export default function ProjectPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const { projects } = useProjects();
-  const [tab, setTab] = useState<Tab>("overview");
-  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
-  const [addingToPhase, setAddingToPhase] = useState<string | null>(null);
-  const [newItemTitle, setNewItemTitle] = useState("");
-  const [editingItem, setEditingItem] = useState<ChecklistItem | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [updatingKpi, setUpdatingKpi] = useState<Kpi | null>(null);
-  const [newKpiValue, setNewKpiValue] = useState("");
-  const [kpiEditForm, setKpiEditForm] = useState({ name: "", target_value: "", unit: "", description: "" });
-  const [addingKpi, setAddingKpi] = useState(false);
-  const [kpiAddForm, setKpiAddForm] = useState({ name: "", current_value: "", target_value: "100", unit: "", description: "" });
 
-  const [addingRisk, setAddingRisk] = useState(false);
-  const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
-  const [riskForm, setRiskForm] = useState({ title: "", description: "", probability: "medium" as Risk["probability"], impact: "medium" as string, mitigation: "" });
-  const [riskEditForm, setRiskEditForm] = useState({ title: "", description: "", probability: "medium" as Risk["probability"], impact: "medium" as string, mitigation: "" });
+  // Tab state synced with ?tab=... query param so refresh keeps position
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tabParam = searchParams.get("tab");
+  const tab: Tab = isValidTab(tabParam) ? tabParam : "overview";
+  const setTab = useCallback((next: Tab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "overview") params.delete("tab");
+    else params.set("tab", next);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
+  // AI Summary
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
 
-  const [planEditMode, setPlanEditMode] = useState(false);
-  const [addingPhase, setAddingPhase] = useState(false);
-  const [newPhaseTitle, setNewPhaseTitle] = useState("");
-  const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
-  const [editingPhaseTitle, setEditingPhaseTitle] = useState("");
-
-  // Step sheet state
-  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
-  const [sheetVisible, setSheetVisible] = useState(false);
+  const refreshAiSummary = useCallback(async (projectId: string) => {
+    setAiSummaryLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/summary`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setAiSummary(data.summary ?? null);
+    } catch {
+      toast.error("Не удалось получить AI Summary");
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  }, []);
 
   const project = projects.find(p => p.slug === slug);
 
@@ -87,143 +99,10 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
   const resolvedId = projectId ?? project?.id ?? null;
   const { steps, toggleStep, progress: stepsProgress } = useProjectSteps(resolvedId);
   const { checklist, toggleItem, addItem, updateItem, deleteItem, progress, getByPhase } = useProjectChecklist(resolvedId);
-  const { kpis, addKpi, updateValue, updateKpi, deleteKpi, getProgress, getProgressColor } = useProjectKpis(resolvedId);
+  const { kpis, addKpi, updateKpi, deleteKpi, getProgress } = useProjectKpis(resolvedId);
   const { chartData, totalProfit } = useProjectForecast(resolvedId);
   const { risks, addRisk, resolveRisk, updateRisk, deleteRisk, getProbabilityColor, getProbabilityLabel, unresolvedRisks } = useProjectRisks(resolvedId);
   const { items: budgetItems, loading: budgetLoading, totalBudget, totalSpent, addItem: addBudgetItem, updateItem: updateBudgetItem, deleteItem: deleteBudgetItem } = useProjectBudget(resolvedId);
-
-  // Auto-expand active phase
-  useEffect(() => {
-    if (phases.length > 0) {
-      const active = phases.find(p => p.status === "active");
-      if (active) setExpandedPhases(new Set([active.id]));
-    }
-  }, [phases]);
-
-  const togglePhase = (id: string) =>
-    setExpandedPhases(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-
-  const handleToggleItem = async (item: ChecklistItem) => {
-    const ok = await toggleItem(item);
-    if (ok) toast.success(item.is_done ? "Отмечено как невыполненное" : "Выполнено!");
-  };
-
-  const handleAddItem = async (phaseId: string) => {
-    if (!newItemTitle.trim()) return;
-    const result = await addItem(phaseId, newItemTitle.trim());
-    if (result) {
-      toast.success("Пункт добавлен");
-      setNewItemTitle("");
-      setAddingToPhase(null);
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingItem || !editTitle.trim()) return;
-    const ok = await updateItem(editingItem.id, { title: editTitle.trim() });
-    if (ok) { toast.success("Обновлено"); setEditingItem(null); }
-  };
-
-  const handleDeleteItem = async (id: string) => {
-    const ok = await deleteItem(id);
-    if (ok) toast.success("Удалено");
-  };
-
-  const handleAddPhase = async () => {
-    if (!newPhaseTitle.trim()) return;
-    const p = await addPhase(newPhaseTitle.trim());
-    if (p) { toast.success("Фаза добавлена"); setNewPhaseTitle(""); setAddingPhase(false); }
-    else toast.error("Ошибка при добавлении");
-  };
-
-  const handleSavePhase = async () => {
-    if (!editingPhaseId || !editingPhaseTitle.trim()) return;
-    const ok = await updatePhase(editingPhaseId, { title: editingPhaseTitle.trim() });
-    if (ok) { setEditingPhaseId(null); setEditingPhaseTitle(""); }
-  };
-
-  const handleDeletePhase = async (id: string) => {
-    const ok = await deletePhase(id);
-    if (ok) toast.success("Фаза удалена"); else toast.error("Ошибка");
-  };
-
-  const handleUpdateKpi = async () => {
-    if (!updatingKpi) return;
-    const current = parseFloat(newKpiValue);
-    if (isNaN(current)) return;
-    const updates: Parameters<typeof updateKpi>[1] = { current_value: current };
-    const tgt = parseFloat(kpiEditForm.target_value);
-    if (!isNaN(tgt) && tgt > 0) updates.target_value = tgt;
-    if (kpiEditForm.name.trim()) updates.name = kpiEditForm.name.trim();
-    if (kpiEditForm.unit.trim() !== undefined) updates.unit = kpiEditForm.unit.trim() || null;
-    if (kpiEditForm.description.trim() !== undefined) updates.description = kpiEditForm.description.trim() || null;
-    const ok = await updateKpi(updatingKpi.id, updates);
-    if (ok) { toast.success("KPI обновлён"); setUpdatingKpi(null); setNewKpiValue(""); }
-  };
-
-  const handleAddKpi = async () => {
-    if (!kpiAddForm.name.trim()) return;
-    const r = await addKpi({
-      name: kpiAddForm.name.trim(),
-      current_value: parseFloat(kpiAddForm.current_value) || 0,
-      target_value: parseFloat(kpiAddForm.target_value) || 100,
-      unit: kpiAddForm.unit.trim() || undefined,
-      description: kpiAddForm.description.trim() || undefined,
-    });
-    if (r) {
-      toast.success("KPI добавлен");
-      setAddingKpi(false);
-      setKpiAddForm({ name: "", current_value: "", target_value: "100", unit: "", description: "" });
-    } else {
-      toast.error("Ошибка");
-    }
-  };
-
-  const handleAddRisk = async () => {
-    if (!riskForm.title.trim()) return;
-    const r = await addRisk({
-      title: riskForm.title.trim(),
-      description: riskForm.description.trim() || undefined,
-      probability: riskForm.probability,
-      impact: riskForm.impact || undefined,
-      mitigation: riskForm.mitigation.trim() || undefined,
-    });
-    if (r) { toast.success("Риск добавлен"); setAddingRisk(false); setRiskForm({ title: "", description: "", probability: "medium", impact: "medium", mitigation: "" }); }
-    else toast.error("Ошибка");
-  };
-
-  const handleUpdateRisk = async () => {
-    if (!editingRisk) return;
-    const ok = await updateRisk(editingRisk.id, {
-      title: riskEditForm.title.trim(),
-      description: riskEditForm.description.trim() || null,
-      probability: riskEditForm.probability,
-      impact: riskEditForm.impact || null,
-      mitigation: riskEditForm.mitigation.trim() || null,
-    });
-    if (ok) { toast.success("Риск обновлён"); setEditingRisk(null); }
-    else toast.error("Ошибка");
-  };
-
-  const openEditRisk = (r: Risk) => {
-    setEditingRisk(r);
-    setRiskEditForm({
-      title: r.title,
-      description: r.description || "",
-      probability: r.probability,
-      impact: r.impact || "medium",
-      mitigation: r.mitigation || "",
-    });
-  };
-
-  const getPhaseProgress = (phaseId: string) => {
-    const items = getByPhase(phaseId);
-    return { done: items.filter(c => c.is_done).length, total: items.length };
-  };
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Обзор" },
@@ -237,35 +116,32 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
 
   if (!project && projects.length > 0) {
     return (
-      <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-        <Corridor />
-        <main className="flex-1 flex items-center justify-center bg-bg">
+      <AppShell>
+        <div className="flex-1 flex items-center justify-center bg-bg min-h-full">
           <div className="text-center">
             <h1 className="text-xl font-semibold text-ink mb-3">Проект не найден</h1>
             <Link href="/projects" className="text-accent hover:text-accent-2 text-sm">← Все проекты</Link>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppShell>
     );
   }
 
   if (!project) {
     return (
-      <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-        <Corridor />
-        <main className="flex-1 flex items-center justify-center bg-bg">
+      <AppShell>
+        <div className="flex-1 flex items-center justify-center bg-bg min-h-full">
           <div className="text-ink-3 text-sm">Загрузка...</div>
-        </main>
-      </div>
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="grid h-screen" style={{ gridTemplateColumns: "240px 1fr" }}>
-      <Corridor />
-      <main className="flex-1 overflow-y-auto bg-bg">
+    <AppShell>
+      <div className="bg-bg min-h-full">
         {/* Page header */}
-        <div className="border-b border-line px-8 pt-6 pb-0">
+        <div className="border-b border-line px-4 md:px-8 pt-6 pb-0">
           <Link href="/projects" className="inline-flex items-center gap-1.5 text-ink-3 hover:text-ink text-sm mb-4 transition-colors">
             <ArrowLeft size={14} />Проекты
           </Link>
@@ -298,6 +174,16 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
                   <ExternalLink size={13} />Prod
                 </a>
               )}
+              <button
+                onClick={() => refreshAiSummary(project.id)}
+                disabled={aiSummaryLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/10 border border-accent/30 rounded text-sm text-accent hover:bg-accent/20 transition-colors disabled:opacity-50"
+              >
+                {aiSummaryLoading
+                  ? <RefreshCw size={13} className="animate-spin" />
+                  : <Sparkles size={13} />}
+                AI Brief
+              </button>
             </div>
           </div>
 
@@ -333,764 +219,67 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
         </div>
 
         {/* Tab content */}
-        <div className="px-8 py-6">
+        <div className="px-4 md:px-8 py-6">
 
           {/* ── OVERVIEW ── */}
           {tab === "overview" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-4 gap-4">
-                <StatCard label="Прогресс" value={`${progress.percentage}%`} accent />
-                <StatCard label="Активная фаза" value={phases.find(p => p.status === "active")?.title || "—"} small />
-                <StatCard label="Выполнено задач" value={String(progress.done)} />
-                <StatCard label="Активных рисков" value={String(unresolvedRisks.length)} danger={unresolvedRisks.length > 0} />
-              </div>
-
-              {unresolvedRisks.length > 0 && (
-                <div>
-                  <h2 className="text-[13px] font-semibold text-ink mb-3 flex items-center gap-2">
-                    <AlertTriangle size={14} className="text-amber-400" />Активные риски
-                  </h2>
-                  <div className="space-y-2">
-                    {unresolvedRisks.slice(0, 3).map(risk => (
-                      <div key={risk.id} className="bg-panel border border-line rounded-lg p-4 flex items-start gap-3">
-                        <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${getProbabilityColor(risk.probability)}`} />
-                        <div>
-                          <div className="text-sm font-medium text-ink">{risk.title}</div>
-                          <div className="text-[12px] text-ink-3 mt-0.5">{risk.mitigation || risk.description}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <OverviewTab
+              progress={progress}
+              phases={phases}
+              unresolvedRisks={unresolvedRisks}
+              getProbabilityColor={getProbabilityColor}
+              aiSummary={aiSummary}
+              aiSummaryLoading={aiSummaryLoading}
+              refreshAiSummary={refreshAiSummary}
+              projectId={project.id}
+            />
           )}
 
           {/* ── PLAN ── */}
           {tab === "plan" && (
-            <div className="space-y-5">
-              {/* Steps progress bar */}
-              {steps.length > 0 && (
-                <div className="bg-panel border border-line rounded-lg px-5 py-4">
-                  <div className="flex items-center justify-between text-[12px] mb-2.5">
-                    <span className="text-ink-3">{stepsProgress.done} / {stepsProgress.total} шагов</span>
-                    <span className="font-mono text-accent font-medium">{stepsProgress.percentage}%</span>
-                  </div>
-                  <div className="h-[4px] bg-line rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-accent rounded-full transition-all duration-700"
-                      style={{ width: `${stepsProgress.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Steps list */}
-              {steps.length > 0 ? (
-                <div className="space-y-2">
-                  {steps.map((step, idx) => {
-                    const isCompleted = step.completed;
-                    const prevDone = idx === 0 || steps[idx - 1].completed;
-                    const isFuture = !prevDone && !isCompleted;
-                    return (
-                      <div
-                        key={step.id}
-                        className={`group bg-panel border rounded-lg px-5 py-4 flex items-center gap-4 transition-all duration-200 ${
-                          isCompleted
-                            ? "border-line opacity-60"
-                            : isFuture
-                            ? "border-line opacity-50"
-                            : "border-line hover:border-accent/30"
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <button
-                          onClick={async () => {
-                            const ok = await toggleStep(step);
-                            if (ok) toast.success(step.completed ? "Шаг отменён" : "Шаг выполнен!");
-                          }}
-                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${
-                            isCompleted
-                              ? "bg-accent border-accent text-white"
-                              : "border-line-2 hover:border-accent/60"
-                          }`}
-                        >
-                          {isCompleted && <Check size={12} strokeWidth={3} />}
-                        </button>
-
-                        {/* Step number + content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-mono text-[11px] text-ink-3 shrink-0">
-                              {String(step.order_index).padStart(2, "0")}
-                            </span>
-                            <span className={`text-[14px] font-medium leading-snug ${
-                              isCompleted ? "line-through text-ink-3" : "text-ink"
-                            }`}>
-                              {step.title}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 ml-7">
-                            {step.estimated_time && (
-                              <span className="flex items-center gap-1 text-[11px] text-ink-3">
-                                <Clock size={10} />
-                                {step.estimated_time}
-                              </span>
-                            )}
-                            {isCompleted && step.completed_at && (
-                              <span className="text-[10px] text-ink-3 font-mono">
-                                {new Date(step.completed_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Open instruction button */}
-                        {step.description_md && (
-                          <button
-                            onClick={() => { setSelectedStepId(step.id); setSheetVisible(true); }}
-                            className="shrink-0 p-2 rounded-lg text-ink-3 hover:text-accent hover:bg-accent/10 transition-all opacity-0 group-hover:opacity-100"
-                            title="Открыть инструкцию"
-                          >
-                            <ArrowRight size={16} />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-ink-3 text-sm">
-                  Шаги для этого проекта не найдены.<br />
-                  <span className="text-[12px]">Добавьте шаги через SQL или заполните таблицу project_steps.</span>
-                </div>
-              )}
-
-              {/* Phases section (secondary) */}
-              <details className="group">
-                <summary className="cursor-pointer flex items-center gap-2 text-[12px] text-ink-3 hover:text-ink-2 transition-colors select-none list-none py-1">
-                  <ChevronRight size={13} className="group-open:rotate-90 transition-transform" />
-                  Фазы и чеклист ({phases.length} фаз · {progress.done}/{progress.total} пунктов)
-                </summary>
-                <div className="mt-3 space-y-4 pl-4 border-l border-line">
-                  {/* Edit mode toggle */}
-                  <div className="flex items-center justify-between">
-                    <div className="text-[11px] text-ink-3">{phases.length} фаз</div>
-                    <button
-                      onClick={() => setPlanEditMode(!planEditMode)}
-                      className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${
-                        planEditMode
-                          ? "bg-accent/10 border-accent/40 text-accent"
-                          : "border-line text-ink-3 hover:text-ink hover:border-line-2"
-                      }`}
-                    >
-                      <Pencil size={10} />
-                      {planEditMode ? "Готово" : "Редактировать"}
-                    </button>
-                  </div>
-
-              {/* Phase stepper */}
-              {phases.length > 0 && (
-                <div className="bg-panel border border-line rounded-lg p-5">
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {phases.map((phase, idx) => {
-                      const prog = getPhaseProgress(phase.id);
-                      const done = phase.status === "completed";
-                      const active = phase.status === "active";
-                      return (
-                        <div key={phase.id} className="flex items-center gap-2 shrink-0">
-                          <div className="flex flex-col items-center gap-1">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold ${
-                              done   ? "bg-green text-white" :
-                              active ? "bg-accent text-white" :
-                                       "bg-panel-2 text-ink-3 border border-line"
-                            }`}>
-                              {done ? <Check size={12} /> : idx + 1}
-                            </div>
-                            <div className={`text-[9px] font-mono ${active ? "text-accent" : "text-ink-3"}`}>
-                              {prog.done}/{prog.total}
-                            </div>
-                          </div>
-                          {idx < phases.length - 1 && (
-                            <div className={`h-px w-8 ${done ? "bg-green" : "bg-line"}`} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Phases + checklists */}
-              {phases.length === 0 ? (
-                <div className="text-center py-12 text-ink-3 text-sm">
-                  Фазы не найдены.{" "}
-                  {planEditMode && (
-                    <button onClick={() => setAddingPhase(true)} className="text-accent hover:text-accent-2">Добавить первую</button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {phases.map(phase => {
-                    const phaseItems = checklist.filter(c => c.phase_id === phase.id);
-                    const prog = getPhaseProgress(phase.id);
-                    const isExpanded = expandedPhases.has(phase.id);
-
-                    return (
-                      <div key={phase.id} className="bg-panel border border-line rounded-lg overflow-hidden">
-                          {editingPhaseId === phase.id ? (
-                          <div className="px-4 py-2 flex items-center gap-2">
-                            <input
-                              value={editingPhaseTitle}
-                              onChange={(e) => setEditingPhaseTitle(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") handleSavePhase(); if (e.key === "Escape") setEditingPhaseId(null); }}
-                              className="flex-1 bg-bg border border-accent/40 rounded px-2 py-1 text-sm text-ink outline-none"
-                              autoFocus
-                            />
-                            <button onClick={handleSavePhase} className="text-[11px] px-2 py-1 bg-accent text-white rounded hover:bg-accent-2">Сохр.</button>
-                            <button onClick={() => setEditingPhaseId(null)} className="text-[11px] text-ink-3 hover:text-ink">Отмена</button>
-                          </div>
-                        ) : (
-                        <button
-                          onClick={() => togglePhase(phase.id)}
-                          className="w-full px-4 py-3 flex items-center gap-3 hover:bg-panel-2 transition-colors text-left"
-                        >
-                          {isExpanded ? <ChevronDown size={14} className="text-ink-3 shrink-0" /> : <ChevronRight size={14} className="text-ink-3 shrink-0" />}
-                          <span className="text-[13px] font-medium text-ink flex-1">
-                            {phase.order_index}. {phase.title}
-                          </span>
-                          <span className={`font-mono text-[10px] ${prog.done === prog.total && prog.total > 0 ? "text-green" : "text-ink-3"}`}>
-                            {prog.done}/{prog.total}
-                          </span>
-                          {prog.done === prog.total && prog.total > 0 && (
-                            <Check size={13} className="text-green" />
-                          )}
-                          {planEditMode && (
-                            <>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setEditingPhaseId(phase.id); setEditingPhaseTitle(phase.title); }}
-                                className="p-1 text-ink-3 hover:text-ink"
-                              ><Pencil size={11} /></button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDeletePhase(phase.id); }}
-                                className="p-1 text-ink-3 hover:text-red"
-                              ><Trash2 size={11} /></button>
-                            </>
-                          )}
-                        </button>
-                        )}
-
-                        {isExpanded && (
-                          <div className="border-t border-line px-4 pb-4 pt-3">
-                            <div className="space-y-1 mb-3">
-                              {phaseItems.map(item => (
-                                <div key={item.id} className="group flex items-center gap-2.5 py-1.5 px-2 rounded hover:bg-panel-2 transition-colors">
-                                  <button
-                                    onClick={() => handleToggleItem(item)}
-                                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
-                                      item.is_done ? "bg-accent border-accent text-white" : "border-line-2 hover:border-accent/50"
-                                    }`}
-                                  >
-                                    {item.is_done && <Check size={10} />}
-                                  </button>
-
-                                  {editingItem?.id === item.id ? (
-                                    <div className="flex-1 flex items-center gap-2">
-                                      <input
-                                        type="text"
-                                        value={editTitle}
-                                        onChange={e => setEditTitle(e.target.value)}
-                                        onKeyDown={e => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditingItem(null); }}
-                                        className="flex-1 bg-bg border border-line rounded px-2 py-0.5 text-sm text-ink outline-none focus:border-accent/50"
-                                        autoFocus
-                                      />
-                                      <button onClick={handleSaveEdit} className="text-[11px] px-2 py-0.5 bg-accent text-white rounded hover:bg-accent-2">Сохр.</button>
-                                      <button onClick={() => setEditingItem(null)} className="text-[11px] text-ink-3 hover:text-ink">Отмена</button>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <span className={`flex-1 text-[13px] ${item.is_done ? "text-ink-3 line-through" : "text-ink"}`}>
-                                        {item.title}
-                                      </span>
-                                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                                        <button onClick={() => { setEditingItem(item); setEditTitle(item.title); }} className="p-1 text-ink-3 hover:text-ink">
-                                          <Pencil size={11} />
-                                        </button>
-                                        <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-ink-3 hover:text-red">
-                                          <Trash2 size={11} />
-                                        </button>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              ))}
-                              {phaseItems.length === 0 && (
-                                <div className="py-2 text-[12px] text-ink-3 px-2">Нет пунктов</div>
-                              )}
-                            </div>
-
-                            {/* Add item */}
-                            {addingToPhase === phase.id ? (
-                              <div className="flex items-center gap-2 mt-2">
-                                <input
-                                  type="text"
-                                  value={newItemTitle}
-                                  onChange={e => setNewItemTitle(e.target.value)}
-                                  onKeyDown={e => { if (e.key === "Enter") handleAddItem(phase.id); if (e.key === "Escape") { setAddingToPhase(null); setNewItemTitle(""); } }}
-                                  placeholder="Название пункта..."
-                                  className="flex-1 bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                                  autoFocus
-                                />
-                                <button onClick={() => handleAddItem(phase.id)} className="px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2">Добавить</button>
-                                <button onClick={() => { setAddingToPhase(null); setNewItemTitle(""); }} className="px-3 py-1.5 text-ink-3 hover:text-ink text-sm">Отмена</button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setAddingToPhase(phase.id)}
-                                className="flex items-center gap-1.5 text-[12px] text-ink-3 hover:text-accent transition-colors mt-1"
-                              >
-                                <Plus size={12} />Добавить пункт
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-                  {/* Add phase */}
-                  {planEditMode && (
-                    <div className="mt-2">
-                      {addingPhase ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={newPhaseTitle}
-                            onChange={(e) => setNewPhaseTitle(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") handleAddPhase(); if (e.key === "Escape") { setAddingPhase(false); setNewPhaseTitle(""); } }}
-                            placeholder="Название фазы..."
-                            className="flex-1 bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                            autoFocus
-                          />
-                          <button onClick={handleAddPhase} className="px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2">Добавить</button>
-                          <button onClick={() => { setAddingPhase(false); setNewPhaseTitle(""); }} className="px-3 py-1.5 text-ink-3 hover:text-ink text-sm">Отмена</button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setAddingPhase(true)}
-                          className="flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-accent transition-colors px-4 py-2 border border-dashed border-line rounded-lg w-full"
-                        >
-                          <Plus size={13} />+ Добавить фазу
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </details>
-            </div>
+            <PlanTab
+              steps={steps}
+              stepsProgress={stepsProgress}
+              toggleStep={toggleStep}
+              phases={phases}
+              addPhase={addPhase}
+              updatePhase={updatePhase}
+              deletePhase={deletePhase}
+              checklist={checklist}
+              progress={progress}
+              getByPhase={getByPhase}
+              toggleItem={toggleItem}
+              addItem={addItem}
+              updateItem={updateItem}
+              deleteItem={deleteItem}
+            />
           )}
 
           {/* ── KPI ── */}
           {tab === "kpi" && (
-            <div className="space-y-6">
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setAddingKpi(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors"
-                >
-                  <Plus size={13} />Добавить KPI
-                </button>
-              </div>
-
-              {kpis.length === 0 && !addingKpi && (
-                <div className="text-center py-12 text-ink-3 text-sm">
-                  KPI не добавлены. Нажмите «Добавить KPI».
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                {kpis.map(kpi => {
-                  const prog = getProgress(kpi);
-                  return (
-                    <div key={kpi.id} className="bg-panel border border-line rounded-lg p-5 group">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[12px] text-ink-3">{kpi.name}</span>
-                          {kpi.description && <KpiTooltip text={kpi.description} />}
-                        </div>
-                        <button
-                          onClick={() => deleteKpi(kpi.id).then(ok => ok && toast.success("KPI удалён"))}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-ink-3 hover:text-red transition-all"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                      <div className="text-[22px] font-semibold text-ink mb-1">
-                        {kpi.current_value.toLocaleString()}
-                        {kpi.unit && <span className="text-[14px] text-ink-3 ml-1">{kpi.unit}</span>}
-                        <span className="text-[14px] text-ink-3 mx-2">/</span>
-                        <span className="text-[16px] text-ink-2">{kpi.target_value.toLocaleString()}</span>
-                      </div>
-                      <div className="h-[3px] bg-line rounded-full overflow-hidden mb-3">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(prog, 100)}%`,
-                            background: prog >= 70
-                              ? "linear-gradient(90deg, rgb(var(--color-green)), #5abf8a)"
-                              : prog >= 30
-                              ? "linear-gradient(90deg, #d97706, #f59e0b)"
-                              : "linear-gradient(90deg, rgb(var(--color-red)), #e06b70)",
-                          }}
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          setUpdatingKpi(kpi);
-                          setNewKpiValue(kpi.current_value.toString());
-                          setKpiEditForm({ name: kpi.name, target_value: kpi.target_value.toString(), unit: kpi.unit || "", description: kpi.description || "" });
-                        }}
-                        className="text-[12px] text-accent hover:text-accent-2 transition-colors"
-                      >
-                        Редактировать
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* KPI add form */}
-              {addingKpi && (
-                <div className="bg-panel border border-accent/30 rounded-lg p-4 space-y-3">
-                  <div className="text-[13px] font-medium text-ink">Новый KPI</div>
-                  <div>
-                    <label className="text-[11px] text-ink-3 mb-1 block">Название *</label>
-                    <input
-                      value={kpiAddForm.name}
-                      onChange={e => setKpiAddForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder="Например: MAU, Доход, Конверсия"
-                      className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[11px] text-ink-3 mb-1 block">Текущее</label>
-                      <input type="number" value={kpiAddForm.current_value} onChange={e => setKpiAddForm(f => ({ ...f, current_value: e.target.value }))}
-                        placeholder="0"
-                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-ink-3 mb-1 block">Цель</label>
-                      <input type="number" value={kpiAddForm.target_value} onChange={e => setKpiAddForm(f => ({ ...f, target_value: e.target.value }))}
-                        placeholder="100"
-                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-ink-3 mb-1 block">Единица</label>
-                      <input value={kpiAddForm.unit} onChange={e => setKpiAddForm(f => ({ ...f, unit: e.target.value }))}
-                        placeholder="%  /  $  /  шт"
-                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-ink-3 mb-1 block">Подсказка (tooltip)</label>
-                    <input value={kpiAddForm.description} onChange={e => setKpiAddForm(f => ({ ...f, description: e.target.value }))}
-                      placeholder="Описание метрики для tooltip"
-                      className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setAddingKpi(false); setKpiAddForm({ name: "", current_value: "", target_value: "100", unit: "", description: "" }); }}
-                      className="flex-1 px-3 py-1.5 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">
-                      Отмена
-                    </button>
-                    <button onClick={handleAddKpi}
-                      className="flex-1 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">
-                      Добавить
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* KPI edit modal */}
-              {updatingKpi && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                  <div className="bg-panel border border-line rounded-lg p-5 w-[360px]">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-[14px] font-semibold text-ink">Редактировать KPI</div>
-                      <button onClick={() => setUpdatingKpi(null)} className="text-ink-3 hover:text-ink"><X size={14} /></button>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-[11px] text-ink-3 mb-1 block">Название</label>
-                        <input value={kpiEditForm.name} onChange={e => setKpiEditForm(f => ({ ...f, name: e.target.value }))}
-                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" autoFocus />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[11px] text-ink-3 mb-1 block">Текущее значение</label>
-                          <input type="number" value={newKpiValue} onChange={e => setNewKpiValue(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && handleUpdateKpi()}
-                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                        </div>
-                        <div>
-                          <label className="text-[11px] text-ink-3 mb-1 block">Цель</label>
-                          <input type="number" value={kpiEditForm.target_value} onChange={e => setKpiEditForm(f => ({ ...f, target_value: e.target.value }))}
-                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[11px] text-ink-3 mb-1 block">Единица измерения</label>
-                        <input value={kpiEditForm.unit} onChange={e => setKpiEditForm(f => ({ ...f, unit: e.target.value }))}
-                          placeholder="%  /  $  /  шт"
-                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                      </div>
-                      <div>
-                        <label className="text-[11px] text-ink-3 mb-1 block">Подсказка (tooltip)</label>
-                        <input value={kpiEditForm.description} onChange={e => setKpiEditForm(f => ({ ...f, description: e.target.value }))}
-                          placeholder="Описание метрики"
-                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                      <button onClick={() => setUpdatingKpi(null)} className="flex-1 px-3 py-2 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">Отмена</button>
-                      <button onClick={handleUpdateKpi} className="flex-1 px-3 py-2 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">Сохранить</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Revenue chart */}
-              {chartData.length > 0 && (
-                <div className="bg-panel border border-line rounded-lg p-5">
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-2 text-[14px] font-semibold text-ink">
-                      <TrendingUp size={15} className="text-accent" />
-                      Финансовый прогноз
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[11px] text-ink-3">Прогнозируемая прибыль</div>
-                      <div className={`text-[16px] font-semibold ${totalProfit >= 0 ? "text-green" : "text-red"}`}>
-                        ${totalProfit.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
-                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: "rgb(var(--color-ink-3))" }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: "rgb(var(--color-ink-3))" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-                        <RechartsTooltip
-                          contentStyle={{ background: "rgb(var(--color-panel))", border: "1px solid rgb(var(--color-line))", borderRadius: "6px", fontSize: "12px" }}
-                          labelStyle={{ color: "rgb(var(--color-ink-2))" }}
-                        />
-                        <Line type="monotone" dataKey="revenue" stroke="rgb(var(--color-accent))" strokeWidth={1.5} dot={false} name="Доход" />
-                        <Line type="monotone" dataKey="costs" stroke="rgb(var(--color-ink-3))" strokeWidth={1.5} dot={false} name="Расходы" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex gap-5 mt-3">
-                    <div className="flex items-center gap-1.5 text-[11px] text-ink-3">
-                      <div className="w-3 h-px bg-accent" />Доход
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-ink-3">
-                      <div className="w-3 h-px bg-ink-3" />Расходы
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <KpiTab
+              kpis={kpis}
+              addKpi={addKpi}
+              updateKpi={updateKpi}
+              deleteKpi={deleteKpi}
+              getProgress={getProgress}
+              chartData={chartData}
+              totalProfit={totalProfit}
+            />
           )}
 
           {/* ── RISKS ── */}
           {tab === "risks" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="text-[12px] text-ink-3">
-                  {unresolvedRisks.length > 0 ? `${unresolvedRisks.length} активных рисков` : "Нет активных рисков"}
-                </div>
-                <button
-                  onClick={() => setAddingRisk(true)}
-                  className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 bg-accent text-white rounded hover:bg-accent-2 transition-colors"
-                >
-                  <Plus size={12} />Добавить риск
-                </button>
-              </div>
-
-              {risks.length === 0 && !addingRisk && (
-                <div className="text-center py-12 text-ink-3 text-sm">Рисков нет</div>
-              )}
-
-              <div className="space-y-2">
-                {risks.map(risk => (
-                  <div
-                    key={risk.id}
-                    className={`bg-panel border border-line rounded-lg p-4 flex items-start gap-3 group ${risk.is_resolved ? "opacity-40" : ""}`}
-                  >
-                    <AlertTriangle size={15} className={`mt-0.5 shrink-0 ${risk.is_resolved ? "text-ink-3" : "text-amber-400"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[13px] font-medium ${risk.is_resolved ? "line-through text-ink-3" : "text-ink"}`}>
-                          {risk.title}
-                        </span>
-                        <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded text-white ${getProbabilityColor(risk.probability)}`}>
-                          {getProbabilityLabel(risk.probability)}
-                        </span>
-                        {risk.impact && (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-panel-2 text-ink-3">
-                            Влияние: {risk.impact === "low" ? "Низкое" : risk.impact === "medium" ? "Среднее" : "Высокое"}
-                          </span>
-                        )}
-                      </div>
-                      {risk.description && (
-                        <div className="text-[12px] text-ink-3 mb-0.5">{risk.description}</div>
-                      )}
-                      {risk.mitigation && (
-                        <div className="text-[12px] text-ink-2">→ {risk.mitigation}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {!risk.is_resolved && (
-                        <button
-                          onClick={() => resolveRisk(risk.id).then(ok => ok && toast.success("Риск решён"))}
-                          className="text-[12px] px-2.5 py-1 bg-panel-2 border border-line rounded text-ink-2 hover:bg-green/10 hover:text-green hover:border-green/30 transition-colors"
-                        >
-                          Решён
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openEditRisk(risk)}
-                        className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-ink transition-all"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button
-                        onClick={() => deleteRisk(risk.id).then(ok => ok && toast.success("Удалено"))}
-                        className="p-1.5 opacity-0 group-hover:opacity-100 text-ink-3 hover:text-red transition-all"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add risk form */}
-              {addingRisk && (
-                <div className="bg-panel border border-accent/30 rounded-lg p-4 space-y-3">
-                  <div className="text-[13px] font-medium text-ink">Новый риск</div>
-                  <input
-                    value={riskForm.title}
-                    onChange={e => setRiskForm(f => ({ ...f, title: e.target.value }))}
-                    placeholder="Название риска..."
-                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                    autoFocus
-                  />
-                  <input
-                    value={riskForm.description}
-                    onChange={e => setRiskForm(f => ({ ...f, description: e.target.value }))}
-                    placeholder="Описание (опционально)"
-                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-ink-3 mb-1 block">Вероятность</label>
-                      <select
-                        value={riskForm.probability}
-                        onChange={e => setRiskForm(f => ({ ...f, probability: e.target.value as Risk["probability"] }))}
-                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                      >
-                        <option value="low">Низкая</option>
-                        <option value="medium">Средняя</option>
-                        <option value="high">Высокая</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-ink-3 mb-1 block">Влияние</label>
-                      <select
-                        value={riskForm.impact}
-                        onChange={e => setRiskForm(f => ({ ...f, impact: e.target.value }))}
-                        className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                      >
-                        <option value="low">Низкое</option>
-                        <option value="medium">Среднее</option>
-                        <option value="high">Высокое</option>
-                      </select>
-                    </div>
-                  </div>
-                  <input
-                    value={riskForm.mitigation}
-                    onChange={e => setRiskForm(f => ({ ...f, mitigation: e.target.value }))}
-                    placeholder="Митигация / план действий"
-                    className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50"
-                  />
-                  <div className="flex gap-2">
-                    <button onClick={() => { setAddingRisk(false); setRiskForm({ title: "", description: "", probability: "medium", impact: "medium", mitigation: "" }); }}
-                      className="flex-1 px-3 py-1.5 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">
-                      Отмена
-                    </button>
-                    <button onClick={handleAddRisk}
-                      className="flex-1 px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">
-                      Добавить
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Edit risk modal */}
-              {editingRisk && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                  <div className="bg-panel border border-line rounded-lg p-5 w-[400px]">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-[14px] font-semibold text-ink">Редактировать риск</div>
-                      <button onClick={() => setEditingRisk(null)} className="text-ink-3 hover:text-ink"><X size={14} /></button>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-[11px] text-ink-3 mb-1 block">Название</label>
-                        <input value={riskEditForm.title} onChange={e => setRiskEditForm(f => ({ ...f, title: e.target.value }))}
-                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" autoFocus />
-                      </div>
-                      <div>
-                        <label className="text-[11px] text-ink-3 mb-1 block">Описание</label>
-                        <input value={riskEditForm.description} onChange={e => setRiskEditForm(f => ({ ...f, description: e.target.value }))}
-                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[11px] text-ink-3 mb-1 block">Вероятность</label>
-                          <select value={riskEditForm.probability} onChange={e => setRiskEditForm(f => ({ ...f, probability: e.target.value as Risk["probability"] }))}
-                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50">
-                            <option value="low">Низкая</option>
-                            <option value="medium">Средняя</option>
-                            <option value="high">Высокая</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[11px] text-ink-3 mb-1 block">Влияние</label>
-                          <select value={riskEditForm.impact} onChange={e => setRiskEditForm(f => ({ ...f, impact: e.target.value }))}
-                            className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50">
-                            <option value="low">Низкое</option>
-                            <option value="medium">Среднее</option>
-                            <option value="high">Высокое</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[11px] text-ink-3 mb-1 block">Митигация</label>
-                        <input value={riskEditForm.mitigation} onChange={e => setRiskEditForm(f => ({ ...f, mitigation: e.target.value }))}
-                          className="w-full bg-bg border border-line rounded px-3 py-1.5 text-sm text-ink outline-none focus:border-accent/50" />
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                      <button onClick={() => setEditingRisk(null)} className="flex-1 px-3 py-2 bg-panel-2 border border-line rounded text-sm text-ink hover:bg-line transition-colors">Отмена</button>
-                      <button onClick={handleUpdateRisk} className="flex-1 px-3 py-2 bg-accent text-white rounded text-sm hover:bg-accent-2 transition-colors">Сохранить</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <RisksTab
+              risks={risks}
+              unresolvedRisks={unresolvedRisks}
+              addRisk={addRisk}
+              resolveRisk={resolveRisk}
+              updateRisk={updateRisk}
+              deleteRisk={deleteRisk}
+              getProbabilityColor={getProbabilityColor}
+              getProbabilityLabel={getProbabilityLabel}
+            />
           )}
 
           {/* ── BUDGET ── */}
@@ -1118,122 +307,9 @@ export default function ProjectPage({ params }: { params: Promise<{ slug: string
           )}
 
         </div>
-      </main>
-
-      {/* ── Step instruction sheet ── */}
-      {sheetVisible && (() => {
-        const step = steps.find(s => s.id === selectedStepId);
-        if (!step) return null;
-        return (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black/40 z-40"
-              onClick={() => setSheetVisible(false)}
-            />
-            {/* Sheet */}
-            <div className="step-sheet-enter fixed top-0 right-0 h-full w-full max-w-[560px] bg-panel border-l border-line z-50 flex flex-col shadow-2xl">
-              {/* Header */}
-              <div className="flex items-start gap-3 px-6 py-5 border-b border-line">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-[11px] text-ink-3">Шаг {step.order_index}</span>
-                    {step.estimated_time && (
-                      <span className="flex items-center gap-1 text-[11px] text-ink-3">
-                        <Clock size={10} />{step.estimated_time}
-                      </span>
-                    )}
-                  </div>
-                  <h2 className="text-[17px] font-semibold text-ink leading-snug">{step.title}</h2>
-                </div>
-                <button
-                  onClick={() => setSheetVisible(false)}
-                  className="p-1.5 text-ink-3 hover:text-ink hover:bg-panel-2 rounded-lg transition-colors shrink-0 mt-0.5"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="flex-1 overflow-y-auto px-6 py-5">
-                {step.description_md ? (
-                  <div className="prose prose-invert prose-sm max-w-none
-                    prose-headings:text-ink prose-headings:font-semibold
-                    prose-p:text-ink-2 prose-p:leading-relaxed
-                    prose-li:text-ink-2
-                    prose-code:text-accent prose-code:bg-panel-2 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[12px] prose-code:font-mono
-                    prose-pre:bg-panel-2 prose-pre:border prose-pre:border-line
-                    prose-strong:text-ink
-                    prose-a:text-accent prose-a:no-underline hover:prose-a:underline
-                    prose-hr:border-line">
-                    <ReactMarkdown>{step.description_md}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <div className="text-ink-3 text-sm">Инструкция не добавлена.</div>
-                )}
-              </div>
-
-              {/* Footer action */}
-              <div className="px-6 py-4 border-t border-line">
-                <button
-                  onClick={async () => {
-                    const ok = await toggleStep(step);
-                    if (ok) {
-                      toast.success(step.completed ? "Шаг отменён" : "Шаг выполнен!");
-                      setSheetVisible(false);
-                    }
-                  }}
-                  className={`w-full py-3 rounded-lg text-sm font-medium transition-colors ${
-                    step.completed
-                      ? "bg-panel-2 border border-line text-ink hover:bg-line"
-                      : "bg-accent text-white hover:bg-accent-2"
-                  }`}
-                >
-                  {step.completed ? "Снять отметку" : "Отметить выполненным"}
-                </button>
-              </div>
-            </div>
-          </>
-        );
-      })()}
-    </div>
-  );
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function KpiTooltip({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="relative inline-flex">
-      <button
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        className="w-3.5 h-3.5 rounded-full bg-line-2 text-ink-3 text-[9px] flex items-center justify-center hover:bg-accent/20 hover:text-accent transition-colors"
-      >
-        <HelpCircle size={9} />
-      </button>
-      {show && (
-        <div className="absolute left-5 top-0 z-20 bg-panel-2 border border-line-2 rounded px-2.5 py-1.5 text-[11px] text-ink-2 whitespace-nowrap max-w-[260px] shadow-xl pointer-events-none">
-          {text}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, accent, danger, small }: {
-  label: string; value: string; accent?: boolean; danger?: boolean; small?: boolean;
-}) {
-  return (
-    <div className="bg-panel border border-line rounded-lg p-4">
-      <div className="text-[11px] text-ink-3 mb-1.5">{label}</div>
-      <div className={`font-semibold ${small ? "text-[15px]" : "text-[22px]"} ${
-        accent ? "text-accent" : danger ? "text-red" : "text-ink"
-      }`}>
-        {value}
       </div>
-    </div>
+
+    </AppShell>
   );
 }
 

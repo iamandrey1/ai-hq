@@ -25,7 +25,7 @@ export function useChatMessages() {
       if (data && data.length > 0) {
         const formatted: Message[] = data.map(m => ({
           id: m.id,
-          sender: m.sender,
+          sender: m.sender as Message["sender"],
           senderName: m.sender_name,
           content: m.content,
           timestamp: new Date(m.created_at),
@@ -60,7 +60,7 @@ export function useChatMessages() {
           setMessages(prev => {
             if (prev.some(x => x.id === m.id)) return prev;
             const formatted: Message = {
-              id: m.id, sender: m.sender, senderName: m.sender_name,
+              id: m.id, sender: m.sender as Message["sender"], senderName: m.sender_name,
               content: m.content, timestamp: new Date(m.created_at),
               delegated: m.delegated_to || undefined,
             };
